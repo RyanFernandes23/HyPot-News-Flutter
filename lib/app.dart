@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/theme.dart';
 
 // placeholder screens — you'll replace these one by one
 import 'features/auth/screens/login_screen.dart';
@@ -13,12 +14,7 @@ import 'features/settings/screens/settings_screen.dart';
 final _router = GoRouter(
   initialLocation: '/',
   redirect: (context, state) {
-    final session = Supabase.instance.client.auth.currentSession;
-    final isLoggedIn = session != null;
-    final isAuthRoute = state.matchedLocation == '/login'
-                     || state.matchedLocation == '/signup';
-    if (!isLoggedIn && !isAuthRoute) return '/login';
-    if (isLoggedIn && isAuthRoute) return '/';
+    // TODO: remove this bypass when auth is ready
     return null;
   },
   routes: [
@@ -41,6 +37,8 @@ class HypotApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'HyPot News',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
       routerConfig: _router,
     );

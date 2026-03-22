@@ -32,8 +32,9 @@ dependencies:
   hive_flutter: ^1.1.0
 
   # Subscriptions
-  purchases_flutter: ^7.7.1
+  purchases_flutter: ^9.15.0
 
+  
   # Push notifications
   firebase_core: ^3.3.0
   firebase_messaging: ^15.1.0
@@ -50,3 +51,6 @@ dev_dependencies:
   build_runner: ^2.4.11
   riverpod_generator: ^2.4.3
   flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
