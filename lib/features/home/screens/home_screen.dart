@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../news/screens/news_view_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -42,7 +43,17 @@ class HomeScreen extends StatelessWidget {
               return Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: TopicCard(topic: topic, height: cardHeight),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => NewsViewScreen(topic: topic['name'] as String),
+                        ),
+                      );
+                    },
+                    child: TopicCard(topic: topic, height: cardHeight),
+                  ),
                 ),
               );
             }).toList(),
