@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../home/screens/home_screen.dart';
 
 class OnboardingConfigScreen extends StatefulWidget {
   const OnboardingConfigScreen({super.key});
@@ -15,7 +16,7 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
     {'name': 'Finance', 'icon': Icons.account_balance_wallet},
     {'name': 'Regional', 'icon': Icons.location_on},
     {'name': 'Good News', 'icon': Icons.sentiment_satisfied_alt},
-    {'name': 'Hot Topics', 'icon': Icons.local_fire_department},
+    {'name': 'For You', 'icon': Icons.local_fire_department},
     {'name': 'Technology', 'icon': Icons.science},
   ];
 
@@ -33,13 +34,30 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'HyPot News',
+          style: TextStyle(
+            color: Color(0xFF1A1F36),
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline, color: Color(0xFF4F566B)),
+            onPressed: () {},
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 20),
               const Text(
                 'Good Morning, Alex',
                 style: TextStyle(
@@ -108,7 +126,7 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
                           color: isSelected && isRegional ? const Color(0xFF1E66E1) : (isSelected ? Colors.white : Colors.white),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                           border: isSelected && !isRegional
                               ? Border.all(color: const Color(0xFF1E66E1), width: 2)
                               : Border.all(color: Colors.transparent, width: 2),
@@ -150,12 +168,9 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Handle save and navigation
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Saved: ${_selectedInterests.join(", ")}'),
-                        backgroundColor: const Color(0xFF1E66E1),
-                      ),
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HomeScreen()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
