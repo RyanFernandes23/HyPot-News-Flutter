@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
-import 'features/onboarding/screens/onboarding_config_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/theme/app_theme.dart';
+import 'features/navigation/screens/main_navigation_screen.dart';
 
-class HypotApp extends StatelessWidget {
+class HypotApp extends ConsumerWidget {
   const HypotApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeProvider);
+
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: OnboardingConfigScreen(),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
+      home: const MainNavigationScreen(),
     );
   }
 }

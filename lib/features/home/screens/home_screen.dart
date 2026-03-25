@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../news/screens/news_view_screen.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers/navigation_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   final List<Map<String, dynamic>> _topics = const [
@@ -20,7 +22,7 @@ class HomeScreen extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Generate the rows based on the 2-3-2-3 pattern
     List<Widget> rows = [];
     int index = 0;
@@ -45,12 +47,8 @@ class HomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => NewsViewScreen(topic: topic['name'] as String),
-                        ),
-                      );
+                      // Switch to News Feed tab (index 0) and set the topic
+                      ref.read(navigationProvider.notifier).setTopic(topic['name'] as String);
                     },
                     child: TopicCard(topic: topic, height: cardHeight),
                   ),
@@ -64,33 +62,19 @@ class HomeScreen extends StatelessWidget {
       isTwo = !isTwo;
     }
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text(
-          'HyPot News',
-          style: TextStyle(
-            color: Color(0xFF1A1F36),
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Color(0xFF4F566B)),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline, color: Color(0xFF4F566B)),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 16.0),
-        child: Column(
+      backgroundColor: colorScheme.surface,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: Theme.of(context).appBarTheme.systemOverlayStyle ?? 
+               (Theme.of(context).brightness == Brightness.dark 
+                 ? SystemUiOverlayStyle.light 
+                 : SystemUiOverlayStyle.dark),
+        child: SafeArea(
+          child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 20.0),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
@@ -98,32 +82,26 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Your Personalized Hub',
+                  Text(
+                    'Discover',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 32,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1F36),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Curated news based on your interests.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF697386),
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
             ...rows,
           ],
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 }
 
 class TopicCard extends StatelessWidget {

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../profile/screens/profile_screen.dart';
 import '../../home/screens/home_screen.dart';
 
 class OnboardingConfigScreen extends StatefulWidget {
-  const OnboardingConfigScreen({super.key});
+  final bool isEditing;
+  const OnboardingConfigScreen({super.key, this.isEditing = false});
 
   @override
   State<OnboardingConfigScreen> createState() => _OnboardingConfigScreenState();
 }
 
 class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
-  final Set<String> _selectedInterests = {'International', 'Regional'};
+  final Set<String> _selectedInterests = {'International'};
 
   final List<Map<String, dynamic>> _interests = [
     {'name': 'International', 'icon': Icons.public},
@@ -32,46 +35,38 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text(
-          'HyPot News',
-          style: TextStyle(
-            color: Color(0xFF1A1F36),
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_outline, color: Color(0xFF4F566B)),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: colorScheme.surface,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: Theme.of(context).appBarTheme.systemOverlayStyle ?? 
+               (Theme.of(context).brightness == Brightness.dark 
+                 ? SystemUiOverlayStyle.light 
+                 : SystemUiOverlayStyle.dark),
+        child: SafeArea(
+          child: Stack(
             children: [
-              const Text(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 48), // Space for profile button
+              Text(
                 'Good Morning, Alex',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1F36),
+                  color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Customize your daily news intake to start your day informed.',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Color(0xFF697386),
+                  color: colorScheme.secondary,
                   height: 1.5,
                 ),
               ),
@@ -79,26 +74,26 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Select Interests',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1F36),
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE3E8FF),
+                      color: colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Multiple Selection',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF4F566B),
+                        color: colorScheme.primary,
                       ),
                     ),
                   ),
@@ -118,18 +113,18 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
                     final interest = _interests[index];
                     final name = interest['name'] as String;
                     final isSelected = _selectedInterests.contains(name);
-                    final isRegional = name == 'Regional'; // Special case for pure blue background from image
 
                     return GestureDetector(
                       onTap: () => _toggleInterest(name),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
-                          color: isSelected && isRegional ? const Color(0xFF1E66E1) : (isSelected ? Colors.white : Colors.white),
+                          color: isSelected ? colorScheme.primary.withOpacity(0.1) : colorScheme.surface,
                           borderRadius: BorderRadius.circular(12),
-                          border: isSelected && !isRegional
-                              ? Border.all(color: const Color(0xFF1E66E1), width: 2)
-                              : Border.all(color: Colors.transparent, width: 2),
+                          border: Border.all(
+                            color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.1),
+                            width: 1.5,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.04),
@@ -143,16 +138,16 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
                           children: [
                             Icon(
                               interest['icon'] as IconData,
-                              color: isSelected && isRegional ? Colors.white : (isSelected ? const Color(0xFF1E66E1) : const Color(0xFF4F566B)),
+                              color: isSelected ? colorScheme.primary : colorScheme.secondary,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               name,
                               style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected && isRegional ? Colors.white : (isSelected ? const Color(0xFF1E66E1) : const Color(0xFF4F566B)),
+                                fontSize: 14,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                color: isSelected ? colorScheme.primary : colorScheme.onSurface,
                               ),
                             ),
                           ],
@@ -168,13 +163,17 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const HomeScreen()),
-                    );
+                    if (widget.isEditing) {
+                      Navigator.pop(context);
+                    } else {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const HomeScreen()),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E66E1),
+                    backgroundColor: colorScheme.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -190,10 +189,26 @@ class _OnboardingConfigScreenState extends State<OnboardingConfigScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                icon: Icon(Icons.person_outline, color: colorScheme.secondary),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
