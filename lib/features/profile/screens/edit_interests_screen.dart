@@ -97,8 +97,8 @@ class _EditInterestsScreenState extends State<EditInterestsScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4D7CFF),
-                    foregroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                    foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -133,11 +133,15 @@ class _EditInterestsScreenState extends State<EditInterestsScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected ? colorScheme.primary.withOpacity(0.1) : colorScheme.surface,
+          color: isSelected 
+              ? (Theme.of(context).brightness == Brightness.dark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05))
+              : colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.1),
-            width: 1.5,
+            color: isSelected 
+                ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)
+                : colorScheme.onSurface.withOpacity(0.1),
+            width: isSelected ? 1.5 : 1,
           ),
         ),
         child: Row(
@@ -145,7 +149,9 @@ class _EditInterestsScreenState extends State<EditInterestsScreen> {
             Icon(
               interest['icon'],
               size: 20,
-              color: isSelected ? colorScheme.primary : colorScheme.secondary,
+              color: isSelected 
+                  ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)
+                  : colorScheme.secondary,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -154,7 +160,9 @@ class _EditInterestsScreenState extends State<EditInterestsScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+                  color: isSelected 
+                      ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)
+                      : colorScheme.onSurface,
                 ),
               ),
             ),
@@ -162,7 +170,7 @@ class _EditInterestsScreenState extends State<EditInterestsScreen> {
               Icon(
                 Icons.check_circle,
                 size: 16,
-                color: colorScheme.primary,
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
               ),
           ],
         ),

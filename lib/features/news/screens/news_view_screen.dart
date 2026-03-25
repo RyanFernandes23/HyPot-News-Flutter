@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:ui';
 import '../../../core/providers/navigation_provider.dart';
+import '../models/article.dart';
+import '../providers/daily_briefing_provider.dart';
+import '../widgets/category_transition_overlay.dart';
 
 class NewsViewScreen extends ConsumerStatefulWidget {
   final String topic;
@@ -65,22 +68,52 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
 
   final List<Map<String, String>> _dummyArticles = [
     {
-      'headline': 'Global Markets Surge Amid New Economic Policies',
-      'summary': 'Major stock indices around the world saw significant gains today as investors reacted positively to the latest round of economic stimulus measures announced by central banks. Analysts suggest this could be the start of a long-term recovery trend for international trade.',
-      'source': 'Finance Times • 2h ago',
-      'imageUrl': 'https://images.unsplash.com/photo-1611974714658-ff3d286121fe?q=80&w=1000&auto=format&fit=crop',
+      'category': 'Finance',
+      'headline': 'Global Markets Surge Amid New Policies',
+      'summary': 'Major stock indices around the world saw significant gains today.',
+      'source': 'Finance Times',
+      'imageUrl': 'https://images.unsplash.com/photo-1611974714658-ff3d286121fe?q=80&w=1000',
+      'url': 'https://www.ft.com',
     },
     {
-      'headline': 'Breakthrough in Renewable Energy Storage Technology',
-      'summary': 'Scientists have unveiled a new type of solid-state battery that can store three times as much energy as current lithium-ion models. This breakthrough is expected to accelerate the transition to electric vehicles and improve the efficiency of solar power grids.',
-      'source': 'Tech Daily • 5h ago',
-      'imageUrl': 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?q=80&w=1000&auto=format&fit=crop',
+      'category': 'Tech',
+      'headline': 'Breakthrough in Battery Tech',
+      'summary': 'Scientists unveiled a new solid-state battery.',
+      'source': 'Tech Daily',
+      'imageUrl': 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?q=80&w=1000',
+      'url': 'https://www.techcrunch.com',
     },
     {
-      'headline': 'New Study Reveals Surprising Benefits of Mindful Living',
-      'summary': 'A comprehensive 10-year study involving thousands of participants has found that just 10 minutes of daily mindfulness practice can significantly lower stress levels and improve cardiovascular health. The findings are being hailed as a major milestone in preventive medicine.',
-      'source': 'Health Watch • 8h ago',
-      'imageUrl': 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=1000&auto=format&fit=crop',
+      'category': 'Science',
+      'headline': 'Mars Rover Finds Ancient Water Signs',
+      'summary': 'Perseverance rover has discovered evidence of persistent water flow.',
+      'source': 'Science Journal',
+      'imageUrl': 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?q=80&w=1000',
+      'url': 'https://www.nature.com',
+    },
+    {
+      'category': 'Tech',
+      'headline': 'AI Model Achieves Human-Level Coding',
+      'summary': 'A new large language model matches top engineers in logic tasks.',
+      'source': 'AI Insider',
+      'imageUrl': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000',
+      'url': 'https://www.openai.com',
+    },
+    {
+      'category': 'Sports',
+      'headline': 'Championship Finals: Underdog Victory',
+      'summary': 'The city celebrated as the local team won their first title.',
+      'source': 'Sports News',
+      'imageUrl': 'https://images.unsplash.com/photo-1504450758481-7338eba7524a?q=80&w=1000',
+      'url': 'https://www.espn.com',
+    },
+    {
+      'category': 'Wellness',
+      'headline': '10 Minutes of Zonal Presence',
+      'summary': 'Researchers find that brief mindfulness sessions boost creativity.',
+      'source': 'Wellness Weekly',
+      'imageUrl': 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=1000',
+      'url': 'https://www.healthline.com',
     },
   ];
 
@@ -141,8 +174,26 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                   scrollDirection: Axis.vertical,
                   itemCount: _dummyArticles.length,
                   itemBuilder: (context, articleIndex) {
-                    final article = _dummyArticles[articleIndex];
-                    return NewsArticlePage(article: article);
+                    final articleMap = _dummyArticles[articleIndex];
+                    final article = Article.fromMap(articleMap);
+                    return NewsArticlePage(
+                      article: article,
+                      onNext: () {
+                        if (articleIndex < _dummyArticles.length - 1) {
+                          // Scroll to next article in same category
+                        } else {
+                          // Transition to next category
+                          final nextIndex = categoryIndex + 1;
+                          if (nextIndex < _topics.length) {
+                            _horizontalController.animateToPage(
+                              nextIndex,
+                              duration: const Duration(milliseconds: 500),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        }
+                      },
+                    );
                   },
                 ),
               );
@@ -199,7 +250,7 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                                     duration: const Duration(milliseconds: 200),
                                     style: TextStyle(
                                       color: isSelected 
-                                          ? colorScheme.primary 
+                                          ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)
                                           : colorScheme.onSurface.withOpacity(0.4),
                                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                                       fontSize: 13,
@@ -213,7 +264,7 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                                     height: 2,
                                     width: isSelected ? 16 : 0,
                                     decoration: BoxDecoration(
-                                      color: colorScheme.primary,
+                                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
                                       borderRadius: BorderRadius.circular(1),
                                     ),
                                   ),
@@ -241,23 +292,32 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                 ),
               ),
             ),
+          Consumer(
+            builder: (context, ref, child) {
+              final briefingState = ref.watch(dailyBriefingProvider);
+              if (briefingState.isTransitioning && briefingState.nextCategory != null) {
+                return CategoryTransitionOverlay(categoryName: briefingState.nextCategory!);
+              }
+              return const SizedBox.shrink();
+            },
+          ),
         ],
       ),
     );
   }
 }
 
-class NewsArticlePage extends StatefulWidget {
-  final Map<String, String> article;
+class NewsArticlePage extends ConsumerStatefulWidget {
+  final Article article;
+  final VoidCallback? onNext;
 
-  const NewsArticlePage({super.key, required this.article});
+  const NewsArticlePage({super.key, required this.article, this.onNext});
 
   @override
-  State<NewsArticlePage> createState() => _NewsArticlePageState();
+  ConsumerState<NewsArticlePage> createState() => _NewsArticlePageState();
 }
 
-class _NewsArticlePageState extends State<NewsArticlePage> {
-  bool _isPlaying = false;
+class _NewsArticlePageState extends ConsumerState<NewsArticlePage> {
   bool _isBookmarked = false;
 
   @override
@@ -276,7 +336,7 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
             ),
             clipBehavior: Clip.antiAlias,
             child: Image.network(
-              widget.article['imageUrl']!,
+              widget.article.imageUrl,
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
@@ -294,106 +354,103 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
             children: [
               SafeArea(
                 top: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                       Text(
-                        widget.article['headline']!,
-                        style: TextStyle(
-                          fontSize: 16, 
-                          fontWeight: FontWeight.w800,
-                          color: colorScheme.onSurface,
-                          height: 1.25,
-                          letterSpacing: -0.2,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onDoubleTap: () {
+                      // Skip Category
+                      ref.read(navigationProvider.notifier).setTopic(null); 
+                    },
+                    onLongPress: () {
+                      // Save to read later gesture
+                      setState(() => _isBookmarked = !_isBookmarked);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(_isBookmarked ? 'Saved to Read Later' : 'Removed from Saved'),
+                          duration: const Duration(seconds: 1),
+                          behavior: SnackBarBehavior.floating,
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        widget.article['summary']!,
-                        style: TextStyle(
-                          fontSize: 14, 
-                          color: colorScheme.onSurface.withOpacity(0.8),
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: colorScheme.onSurface.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: colorScheme.onSurface.withOpacity(0.05),
-                              ),
-                            ),
-                            child: Text(
-                              widget.article['source']!,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurface.withOpacity(0.6),
-                              ),
+                           Text(
+                            widget.article.headline,
+                            style: TextStyle(
+                              fontSize: 16, 
+                              fontWeight: FontWeight.w800,
+                              color: colorScheme.onSurface,
+                              height: 1.25,
+                              letterSpacing: -0.2,
                             ),
                           ),
-                          const Spacer(),
-                          // PLAY BUTTON (Matched to bookmark size)
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _isPlaying = !_isPlaying;
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(24),
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.black, // Sleek black
-                                ),
-                                child: Icon(
-                                  _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                  size: 20, // Increased to 24 for matching
-                                  color: Colors.white, // White icon
-                                ),
-                              ),
+                          const SizedBox(height: 10),
+                          Text(
+                            widget.article.summary,
+                            style: TextStyle(
+                              fontSize: 14, 
+                              color: colorScheme.onSurface.withOpacity(0.8),
+                              height: 1.5,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          // BOOKMARK BUTTON
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _isBookmarked = !_isBookmarked;
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(24),
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.black, // Sleek black
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.onSurface.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: colorScheme.onSurface.withOpacity(0.05),
+                                  ),
                                 ),
-                                child: Icon(
-                                  _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                                  size: 20, 
-                                  color: Colors.white, // White icon
+                                child: Text(
+                                  widget.article.source,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface.withOpacity(0.6),
+                                  ),
                                 ),
                               ),
-                            ),
+                              const Spacer(),
+                              // BOOKMARK BUTTON
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _isBookmarked = !_isBookmarked;
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Theme.of(context).brightness == Brightness.dark
+                                          ? Colors.white.withOpacity(0.1)
+                                          : Colors.black.withOpacity(0.05),
+                                    ),
+                                    child: Icon(
+                                      _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                                      size: 20, 
+                                      color: Theme.of(context).brightness == Brightness.dark
+                                          ? Colors.white
+                                          : Colors.black,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
               ),
             ],
           ),

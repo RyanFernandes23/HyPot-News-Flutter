@@ -21,7 +21,7 @@ class NavigationNotifier extends StateNotifier<NavigationState> {
     state = state.copyWith(selectedIndex: index);
   }
 
-  void setTopic(String topic) {
+  void setTopic(String? topic) {
     state = state.copyWith(selectedTopic: topic, selectedIndex: 0); // Switch to Feed tab (index 0)
   }
 }

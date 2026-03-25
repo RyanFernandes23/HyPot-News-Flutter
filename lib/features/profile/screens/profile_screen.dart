@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../bookmarks/screens/bookmarks_screen.dart';
+import '../../news/models/article.dart';
 import 'edit_interests_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -78,6 +80,42 @@ class ProfileScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 40),
+            
+            // Bookmarks Section
+            _buildSectionHeader(context, 'Bookmarks'),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 140,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _buildBookmarkCard(
+                    context,
+                    Article(
+                      headline: 'The Future of AI in Modern Journalism',
+                      summary: 'Exploring how artificial intelligence is reshaping the way news is gathered, written, and delivered to audiences worldwide.',
+                      source: 'Tech Insights',
+                      imageUrl: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
+                      category: 'Technology',
+                      url: 'https://example.com/ai-journalism',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildBookmarkCard(
+                    context,
+                    Article(
+                      headline: 'Sustainable Energy: Small Steps to Big Change',
+                      summary: 'Community-led initiatives are proving that local solar projects can significantly reduce carbon footprints and energy costs.',
+                      source: 'Green Planet',
+                      imageUrl: 'https://images.unsplash.com/photo-1509391366360-2e959784a276?q=80&w=1000&auto=format&fit=crop',
+                      category: 'Science',
+                      url: 'https://example.com/sustainable-energy',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
 
             // Settings Section
             _buildSectionHeader(context, 'Settings'),
@@ -133,41 +171,47 @@ class ProfileScreen extends ConsumerWidget {
             color: colorScheme.onSurface,
           ),
         ),
-        if (title == 'My Interests')
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 20, color: Color(0xFF4D7CFF)),
+        if (title == 'My Interests' || title == 'Bookmarks')
+          TextButton(
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const EditInterestsScreen(),
+                  builder: (context) => title == 'My Interests' 
+                    ? const EditInterestsScreen() 
+                    : const BookmarksScreen(),
                 ),
               );
             },
+            child: Text(
+              title == 'My Interests' ? 'Edit' : 'View All',
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
       ],
     );
   }
-
   Widget _buildInterestChip(BuildContext context, String label, bool isSelected) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? colorScheme.primary.withOpacity(0.1) : colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSelected ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.1),
-          width: 1,
-        ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Chip(
+      label: Text(label),
+      backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+      labelStyle: TextStyle(
+        fontSize: 12,
+        color: isDark ? Colors.white : Colors.black,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? colorScheme.primary : colorScheme.secondary,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
+      side: BorderSide(
+        color: isSelected 
+            ? (isDark ? Colors.white : Colors.black)
+            : (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1)),
+        width: isSelected ? 1.5 : 1,
       ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 
@@ -210,6 +254,52 @@ class ProfileScreen extends ConsumerWidget {
             )
           : Icon(Icons.chevron_right, color: colorScheme.onSurface.withOpacity(0.2)),
         onTap: () {},
+      ),
+    );
+  }
+
+  Widget _buildBookmarkCard(BuildContext context, Article article) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 200,
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.onSurface.withOpacity(0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Image.network(
+              article.imageUrl,
+              height: 80,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                article.headline,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
