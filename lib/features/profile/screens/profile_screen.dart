@@ -4,6 +4,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../bookmarks/screens/bookmarks_screen.dart';
 import '../../news/models/article.dart';
 import 'edit_interests_screen.dart';
+import '../../news/providers/bookmarks_provider.dart';
+import '../../news/screens/news_detail_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   final bool isTab;
@@ -84,36 +86,44 @@ class ProfileScreen extends ConsumerWidget {
             // Bookmarks Section
             _buildSectionHeader(context, 'Bookmarks'),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 140,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _buildBookmarkCard(
-                    context,
-                    Article(
-                      headline: 'The Future of AI in Modern Journalism',
-                      summary: 'Exploring how artificial intelligence is reshaping the way news is gathered, written, and delivered to audiences worldwide.',
-                      source: 'Tech Insights',
-                      imageUrl: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
-                      category: 'Technology',
-                      url: 'https://example.com/ai-journalism',
-                    ),
+            ref.watch(bookmarksProvider).when(
+              data: (articles) {
+                if (articles.isEmpty) {
+                  return Container(
+                    height: 140,
+                    width: double.infinity,
+                    alignment: Alignment.center,
+                    child: Text('No bookmarks yet', style: TextStyle(color: colorScheme.secondary)),
+                  );
+                }
+                return SizedBox(
+                  height: 140,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: (articles.length > 5) ? 5 : articles.length,
+                    separatorBuilder: (context, index) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final article = articles[index];
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => NewsArticleDetailScreen(
+                                articles: articles,
+                                initialIndex: index,
+                              ),
+                            ),
+                          );
+                        },
+                        child: _buildBookmarkCard(context, article),
+                      );
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  _buildBookmarkCard(
-                    context,
-                    Article(
-                      headline: 'Sustainable Energy: Small Steps to Big Change',
-                      summary: 'Community-led initiatives are proving that local solar projects can significantly reduce carbon footprints and energy costs.',
-                      source: 'Green Planet',
-                      imageUrl: 'https://images.unsplash.com/photo-1509391366360-2e959784a276?q=80&w=1000&auto=format&fit=crop',
-                      category: 'Science',
-                      url: 'https://example.com/sustainable-energy',
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
+              loading: () => const SizedBox(height: 140, child: Center(child: CircularProgressIndicator())),
+              error: (_, __) => const SizedBox(height: 140, child: Center(child: Text('Error loading bookmarks'))),
             ),
             const SizedBox(height: 40),
 

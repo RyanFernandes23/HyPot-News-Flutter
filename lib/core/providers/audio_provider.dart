@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../features/news/models/article.dart';
 
@@ -63,6 +64,24 @@ class AudioNotifier extends StateNotifier<AudioState> {
     });
   }
 
+  /// Build full audio URL from the article's HLS base URL.
+  String? _resolveAudioUrl(Article article) {
+    final baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+
+    // Prefer headline audio, fallback to summary audio
+    final hlsPath = article.headlineHlsBaseUrl ?? article.summaryHlsBaseUrl;
+    if (hlsPath != null && hlsPath.isNotEmpty) {
+      // The backend returns paths like /api/v1/audio/{id}/{type}/{file}
+      // API_BASE_URL already includes /api/v1, so strip that prefix if present
+      if (hlsPath.startsWith('/api/v1/')) {
+        return '$baseUrl${hlsPath.substring(7)}'; // Remove /api/v1 since baseUrl has it
+      }
+      return '$baseUrl$hlsPath';
+    }
+
+    return article.audioUrl;
+  }
+
   Future<void> playArticle(Article article) async {
     if (state.currentArticle?.headline == article.headline) {
       if (_player.playing) {
@@ -79,14 +98,16 @@ class AudioNotifier extends StateNotifier<AudioState> {
         isMiniPlayerVisible: true,
         position: Duration.zero,
       );
-      
-      // Using a reliable sample audio URL or asset
-      final url = article.audioUrl ?? 'https://sample-videos.com/audio/mp3/crowd-cheering.mp3'; // More reliable?
+
+      final url = _resolveAudioUrl(article);
+      if (url == null || url.isEmpty) {
+        state = state.copyWith(isPlaying: false);
+        return;
+      }
+
       await _player.setUrl(url);
       await _player.play();
     } catch (e) {
-      print('Error playing audio: $e');
-      // Set playing to false to avoid infinite loading UI
       state = state.copyWith(isPlaying: false);
     }
   }

@@ -5,6 +5,8 @@ import '../../../core/providers/navigation_provider.dart';
 import '../models/article.dart';
 import '../providers/daily_briefing_provider.dart';
 import '../widgets/category_transition_overlay.dart';
+import '../../../services/news_service.dart';
+import '../widgets/news_article_page.dart';
 
 class NewsViewScreen extends ConsumerStatefulWidget {
   final String topic;
@@ -23,9 +25,17 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
   late List<GlobalKey> _topicKeys;
   bool _isScrollingVertical = false;
 
+  final NewsService _newsService = NewsService();
+
+  // Per-category article cache
+  final Map<String, List<Article>> _categoryArticles = {};
+  final Map<String, String?> _categoryCursors = {};
+  final Map<String, bool> _categoryLoading = {};
+  final Map<String, bool> _categoryHasMore = {};
+
   final List<String> _topics = [
-    'For You', 'International', 'Finance', 'Healthcare', 'Good News', 
-    'Technology', 'Sports', 'Entertainment', 'Science', 'Business', 
+    'For You', 'International', 'Finance', 'Healthcare', 'Good News',
+    'Technology', 'Sports', 'Entertainment', 'Science', 'Business',
     'Travel', 'Lifestyle'
   ];
 
@@ -37,17 +47,18 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
     _horizontalController = PageController(initialPage: initialIndex != -1 ? initialIndex : 0);
     _navbarScrollController = ScrollController();
     _topicKeys = List.generate(_topics.length, (index) => GlobalKey());
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (initialIndex != -1) {
         _scrollToCategory(initialIndex);
       }
+      _loadCategoryIfNeeded(_currentTopic);
     });
   }
 
   void _scrollToCategory(int index) {
     if (index < 0 || index >= _topicKeys.length) return;
-    
+
     final keyContext = _topicKeys[index].currentContext;
     if (keyContext != null) {
       Scrollable.ensureVisible(
@@ -59,63 +70,130 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
     }
   }
 
+  Future<void> _loadCategoryIfNeeded(String category) async {
+    if (_categoryArticles.containsKey(category)) return;
+    await _fetchLiveNews(category);
+  }
+
+  Future<void> _fetchLiveNews(String category, {bool loadMore = false}) async {
+    if (_categoryLoading[category] == true) return;
+
+    setState(() => _categoryLoading[category] = true);
+
+    try {
+      final data = await _newsService.fetchLiveNews(
+        category: category,
+        limit: 15,
+        before: loadMore ? _categoryCursors[category] : null,
+      );
+
+      final articles = (data['articles'] as List)
+          .map((json) {
+            // Live news returns RSS entries, adapt them
+            return Article(
+              externalId: (json['id'] ?? json['link'])?.toString(),
+              category: category,
+              headline: json['title']?.toString() ?? '',
+              summary: json['summary']?.toString() ?? '',
+              summarizedContent: json['summary']?.toString() ?? '',
+              source: json['descriptor_source']?.toString() ?? (json['source'] is Map ? json['source']['title'] : json['source'])?.toString() ?? '',
+              imageUrl: _extractImageUrl(json),
+              url: json['link']?.toString() ?? '',
+              highlights: _extractHighlights(json['summary']?.toString() ?? ''),
+            );
+          })
+          .toList();
+
+      setState(() {
+        if (loadMore) {
+          _categoryArticles[category] = [...(_categoryArticles[category] ?? []), ...articles];
+        } else {
+          _categoryArticles[category] = articles;
+        }
+        _categoryCursors[category] = data['next_cursor'] as String?;
+        _categoryHasMore[category] = articles.isNotEmpty && data['next_cursor'] != null;
+        _categoryLoading[category] = false;
+      });
+    } catch (e) {
+      setState(() => _categoryLoading[category] = false);
+    }
+  }
+
+  String _extractImageUrl(dynamic json) {
+    if (json is! Map) return '';
+    
+    // 1. Try media_content (List or Single)
+    final mediaContent = json['media_content'];
+    if (mediaContent is List && mediaContent.isNotEmpty) {
+      final media = mediaContent[0];
+      if (media is Map && media['url'] != null) return media['url'].toString();
+    } else if (mediaContent is Map) {
+      final url = mediaContent['url']?.toString();
+      if (url != null) return url;
+    }
+
+    // 2. Try media_thumbnail (List or Single)
+    final mediaThumb = json['media_thumbnail'];
+    if (mediaThumb is List && mediaThumb.isNotEmpty) {
+      final thumb = mediaThumb[0];
+      if (thumb is Map && thumb['url'] != null) return thumb['url'].toString();
+    } else if (mediaThumb is Map) {
+      final url = mediaThumb['url']?.toString();
+      if (url != null) return url;
+    }
+
+    // 3. Try standard links / enclosures
+    final links = json['links'];
+    if (links is List) {
+      for (final link in links) {
+        if (link is Map) {
+          final type = link['type']?.toString().toLowerCase() ?? '';
+          final rel = link['rel']?.toString().toLowerCase() ?? '';
+          if (type.startsWith('image/') || rel == 'enclosure' || rel == 'image') {
+            final href = (link['href'] ?? link['url'])?.toString();
+            if (href != null && href.isNotEmpty) return href;
+          }
+        }
+      }
+    }
+
+    // 4. Try image object (common in some RSS versions)
+    final imageObj = json['image'];
+    if (imageObj is Map && imageObj['url'] != null) {
+      return imageObj['url'].toString();
+    }
+
+    // 5. Last resort: Parse summary/content for <img> tags
+    final summary = json['summary']?.toString() ?? '';
+    final content = json['content']?.toString() ?? '';
+    final html = summary + content;
+    if (html.contains('<img')) {
+      final match = RegExp(r'<img[^>]+src="([^">]+)"').firstMatch(html);
+      if (match != null && match.groupCount >= 1) {
+        final src = match.group(1);
+        if (src != null && src.isNotEmpty) return src;
+      }
+    }
+
+    return '';
+  }
+
+  List<String> _extractHighlights(String summary) {
+    if (summary.isEmpty) return [];
+    return summary
+        .split(RegExp(r'[.\n]'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty && s.length > 10)
+        .take(4)
+        .toList();
+  }
+
   @override
   void dispose() {
     _horizontalController.dispose();
     _navbarScrollController.dispose();
     super.dispose();
   }
-
-  final List<Map<String, String>> _dummyArticles = [
-    {
-      'category': 'Finance',
-      'headline': 'Global Markets Surge Amid New Policies',
-      'summary': 'Major stock indices around the world saw significant gains today.',
-      'source': 'Finance Times',
-      'imageUrl': 'https://images.unsplash.com/photo-1611974714658-ff3d286121fe?q=80&w=1000',
-      'url': 'https://www.ft.com',
-    },
-    {
-      'category': 'Tech',
-      'headline': 'Breakthrough in Battery Tech',
-      'summary': 'Scientists unveiled a new solid-state battery.',
-      'source': 'Tech Daily',
-      'imageUrl': 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?q=80&w=1000',
-      'url': 'https://www.techcrunch.com',
-    },
-    {
-      'category': 'Science',
-      'headline': 'Mars Rover Finds Ancient Water Signs',
-      'summary': 'Perseverance rover has discovered evidence of persistent water flow.',
-      'source': 'Science Journal',
-      'imageUrl': 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?q=80&w=1000',
-      'url': 'https://www.nature.com',
-    },
-    {
-      'category': 'Tech',
-      'headline': 'AI Model Achieves Human-Level Coding',
-      'summary': 'A new large language model matches top engineers in logic tasks.',
-      'source': 'AI Insider',
-      'imageUrl': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000',
-      'url': 'https://www.openai.com',
-    },
-    {
-      'category': 'Sports',
-      'headline': 'Championship Finals: Underdog Victory',
-      'summary': 'The city celebrated as the local team won their first title.',
-      'source': 'Sports News',
-      'imageUrl': 'https://images.unsplash.com/photo-1504450758481-7338eba7524a?q=80&w=1000',
-      'url': 'https://www.espn.com',
-    },
-    {
-      'category': 'Wellness',
-      'headline': '10 Minutes of Zonal Presence',
-      'summary': 'Researchers find that brief mindfulness sessions boost creativity.',
-      'source': 'Wellness Weekly',
-      'imageUrl': 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=1000',
-      'url': 'https://www.healthline.com',
-    },
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +212,7 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _scrollToCategory(index);
           });
+          _loadCategoryIfNeeded(next.selectedTopic!);
         }
       }
     });
@@ -146,17 +225,51 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
         children: [
           PageView.builder(
             controller: _horizontalController,
-            physics: _isScrollingVertical 
+            physics: _isScrollingVertical
                 ? const NeverScrollableScrollPhysics()
                 : const PageScrollPhysics(),
             onPageChanged: (index) {
               setState(() {
                 _currentTopic = _topics[index];
               });
-              _scrollToCategory(index); 
+              _scrollToCategory(index);
+              _loadCategoryIfNeeded(_topics[index]);
             },
             itemCount: _topics.length,
             itemBuilder: (context, categoryIndex) {
+              final category = _topics[categoryIndex];
+              final articles = _categoryArticles[category] ?? [];
+              final isLoading = _categoryLoading[category] == true;
+
+              if (articles.isEmpty && isLoading) {
+                return Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                );
+              }
+
+              if (articles.isEmpty && !isLoading) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 48, color: colorScheme.secondary),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No stories in $category',
+                        style: TextStyle(color: colorScheme.secondary, fontSize: 15),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
               return NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
                   if (notification is ScrollStartNotification && notification.metrics.axis == Axis.vertical) {
@@ -172,17 +285,26 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                 },
                 child: PageView.builder(
                   scrollDirection: Axis.vertical,
-                  itemCount: _dummyArticles.length,
+                  itemCount: articles.length,
+                  onPageChanged: (articleIndex) {
+                    // Mark as read
+                    final article = articles[articleIndex];
+                    if (article.externalId != null) {
+                      _newsService.markAsRead(article.externalId!).catchError((_) {});
+                    }
+
+                    // Prefetch more when near end
+                    if (_categoryHasMore[category] == true &&
+                        articleIndex >= articles.length - 3) {
+                      _fetchLiveNews(category, loadMore: true);
+                    }
+                  },
                   itemBuilder: (context, articleIndex) {
-                    final articleMap = _dummyArticles[articleIndex];
-                    final article = Article.fromMap(articleMap);
+                    final article = articles[articleIndex];
                     return NewsArticlePage(
                       article: article,
                       onNext: () {
-                        if (articleIndex < _dummyArticles.length - 1) {
-                          // Scroll to next article in same category
-                        } else {
-                          // Transition to next category
+                        if (articleIndex >= articles.length - 1) {
                           final nextIndex = categoryIndex + 1;
                           if (nextIndex < _topics.length) {
                             _horizontalController.animateToPage(
@@ -199,6 +321,7 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
               );
             },
           ),
+          // ── Category Navbar Overlay ─────────────────────────────────
           Positioned(
             top: 0,
             left: 0,
@@ -228,35 +351,36 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                           final isSelected = topic == _currentTopic;
                           final index = _topics.indexOf(topic);
                           return GestureDetector(
-                            key: _topicKeys[index], 
+                            key: _topicKeys[index],
                             onTap: () {
                               _horizontalController.animateToPage(
-                                index, 
-                                duration: const Duration(milliseconds: 300), 
+                                index,
+                                duration: const Duration(milliseconds: 300),
                                 curve: Curves.easeInOut,
                               );
                               setState(() {
                                 _currentTopic = topic;
                               });
                               _scrollToCategory(index);
+                              _loadCategoryIfNeeded(topic);
                             },
                             child: Container(
-                              margin: const EdgeInsets.only(right: 20), 
-                              color: Colors.transparent, 
+                              margin: const EdgeInsets.only(right: 20),
+                              color: Colors.transparent,
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   AnimatedDefaultTextStyle(
                                     duration: const Duration(milliseconds: 200),
                                     style: TextStyle(
-                                      color: isSelected 
+                                      color: isSelected
                                           ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)
                                           : colorScheme.onSurface.withOpacity(0.4),
                                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                                       fontSize: 13,
                                       letterSpacing: 0.5,
                                     ),
-                                    child: Text(topic), 
+                                    child: Text(topic),
                                   ),
                                   const SizedBox(height: 6),
                                   AnimatedContainer(
@@ -307,155 +431,4 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
   }
 }
 
-class NewsArticlePage extends ConsumerStatefulWidget {
-  final Article article;
-  final VoidCallback? onNext;
-
-  const NewsArticlePage({super.key, required this.article, this.onNext});
-
-  @override
-  ConsumerState<NewsArticlePage> createState() => _NewsArticlePageState();
-}
-
-class _NewsArticlePageState extends ConsumerState<NewsArticlePage> {
-  bool _isBookmarked = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 90),
-        Expanded(
-          flex: 2,
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.black,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Image.network(
-              widget.article.imageUrl,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              errorBuilder: (context, error, stackTrace) => Container(
-                color: Colors.grey[300],
-                child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          flex: 3,
-          child: Stack(
-            clipBehavior: Clip.none, 
-            children: [
-              SafeArea(
-                top: false,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onDoubleTap: () {
-                      // Skip Category
-                      ref.read(navigationProvider.notifier).setTopic(null); 
-                    },
-                    onLongPress: () {
-                      // Save to read later gesture
-                      setState(() => _isBookmarked = !_isBookmarked);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(_isBookmarked ? 'Saved to Read Later' : 'Removed from Saved'),
-                          duration: const Duration(seconds: 1),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                           Text(
-                            widget.article.headline,
-                            style: TextStyle(
-                              fontSize: 16, 
-                              fontWeight: FontWeight.w800,
-                              color: colorScheme.onSurface,
-                              height: 1.25,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            widget.article.summary,
-                            style: TextStyle(
-                              fontSize: 14, 
-                              color: colorScheme.onSurface.withOpacity(0.8),
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.onSurface.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: colorScheme.onSurface.withOpacity(0.05),
-                                  ),
-                                ),
-                                child: Text(
-                                  widget.article.source,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.onSurface.withOpacity(0.6),
-                                  ),
-                                ),
-                              ),
-                              const Spacer(),
-                              // BOOKMARK BUTTON
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _isBookmarked = !_isBookmarked;
-                                    });
-                                  },
-                                  borderRadius: BorderRadius.circular(24),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Theme.of(context).brightness == Brightness.dark
-                                          ? Colors.white.withOpacity(0.1)
-                                          : Colors.black.withOpacity(0.05),
-                                    ),
-                                    child: Icon(
-                                      _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                                      size: 20, 
-                                      color: Theme.of(context).brightness == Brightness.dark
-                                          ? Colors.white
-                                          : Colors.black,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
+// End of NewsViewScreen

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/article.dart';
+import '../../../services/news_service.dart';
+import '../providers/bookmark_sync_provider.dart';
 
 class DailyBriefingState {
   final bool isActive;
@@ -9,6 +11,11 @@ class DailyBriefingState {
   final Duration remainingTime;
   final bool isTransitioning;
   final String? nextCategory;
+  final bool isLoadingMore;
+  final bool hasMore;
+  final int totalOffset;
+  final Set<String> bookmarkedIds;
+  final bool isFinished; // All briefings done — show "That's all"
 
   DailyBriefingState({
     this.isActive = false,
@@ -17,6 +24,11 @@ class DailyBriefingState {
     this.remainingTime = Duration.zero,
     this.isTransitioning = false,
     this.nextCategory,
+    this.isLoadingMore = false,
+    this.hasMore = true,
+    this.totalOffset = 0,
+    this.bookmarkedIds = const {},
+    this.isFinished = false,
   });
 
   DailyBriefingState copyWith({
@@ -26,6 +38,11 @@ class DailyBriefingState {
     Duration? remainingTime,
     bool? isTransitioning,
     String? nextCategory,
+    bool? isLoadingMore,
+    bool? hasMore,
+    int? totalOffset,
+    Set<String>? bookmarkedIds,
+    bool? isFinished,
   }) {
     return DailyBriefingState(
       isActive: isActive ?? this.isActive,
@@ -34,42 +51,97 @@ class DailyBriefingState {
       remainingTime: remainingTime ?? this.remainingTime,
       isTransitioning: isTransitioning ?? this.isTransitioning,
       nextCategory: nextCategory ?? this.nextCategory,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      hasMore: hasMore ?? this.hasMore,
+      totalOffset: totalOffset ?? this.totalOffset,
+      bookmarkedIds: bookmarkedIds ?? this.bookmarkedIds,
+      isFinished: isFinished ?? this.isFinished,
     );
   }
 }
 
 class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
   Timer? _sessionTimer;
+  final Ref _ref;
+  final NewsService _newsService = NewsService();
+  static const int _chunkSize = 5;
 
-  DailyBriefingNotifier() : super(DailyBriefingState());
+  DailyBriefingNotifier(this._ref) : super(DailyBriefingState());
 
+  /// Start briefing by loading the first chunk from the backend.
+  Future<void> startBriefingFromBackend() async {
+    _sessionTimer?.cancel();
+    state = DailyBriefingState(isActive: true, isLoadingMore: true);
+
+    try {
+      // 1. Fetch briefing articles
+      final data = await _newsService.fetchBriefing(
+        limit: _chunkSize,
+        offset: 0,
+      );
+      final articles = (data['articles'] as List)
+          .map((json) => Article.fromJson(json))
+          .toList();
+
+      // 2. Fetch current bookmarks to initialize state
+      final bookmarksData = await _newsService.fetchBookmarks();
+      final bookmarks = (bookmarksData['articles'] as List? ?? [])
+          .map((json) => Article.fromJson(json))
+          .toList();
+      
+      final bookmarkIds = <String>{};
+      for (final b in bookmarks) {
+        if (b.id != null) bookmarkIds.add(b.id!);
+        if (b.externalId != null) bookmarkIds.add(b.externalId!);
+        bookmarkIds.add(b.url);
+      }
+
+      state = DailyBriefingState(
+        isActive: true,
+        sessionArticles: articles,
+        currentArticleIndex: 0,
+        hasMore: articles.length >= _chunkSize,
+        totalOffset: articles.length,
+        bookmarkedIds: bookmarkIds,
+        isLoadingMore: false,
+      );
+    } catch (e) {
+      state = DailyBriefingState(isActive: false);
+    }
+  }
+
+  /// Legacy: start with pre-loaded articles (for fallback/testing).
   void startBriefing(List<Article> articles) {
     _sessionTimer?.cancel();
     state = DailyBriefingState(
       isActive: true,
       sessionArticles: articles,
       currentArticleIndex: 0,
-      remainingTime: const Duration(minutes: 8), // Default 8 min session
+      hasMore: false,
     );
-
-    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (state.remainingTime.inSeconds > 0) {
-        state = state.copyWith(remainingTime: state.remainingTime - const Duration(seconds: 1));
-      } else {
-        stopBriefing();
-      }
-    });
   }
 
   void stopBriefing() {
     _sessionTimer?.cancel();
-    state = state.copyWith(isActive: false);
+    state = state.copyWith(isActive: false, isFinished: true);
   }
 
   void nextArticle() {
     if (state.currentArticleIndex < state.sessionArticles.length - 1) {
-      state = state.copyWith(currentArticleIndex: state.currentArticleIndex + 1);
-    } else {
+      final newIndex = state.currentArticleIndex + 1;
+      state = state.copyWith(currentArticleIndex: newIndex);
+
+      // Mark as read
+      _markCurrentAsRead(newIndex);
+
+      // Prefetch when near the end (k-2 threshold)
+      if (state.hasMore &&
+          !state.isLoadingMore &&
+          newIndex >= state.sessionArticles.length - 2) {
+        _fetchMoreArticles();
+      }
+    } else if (!state.hasMore) {
+      // All articles consumed — mark as finished
       stopBriefing();
     }
   }
@@ -78,6 +150,67 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
     if (state.currentArticleIndex > 0) {
       state = state.copyWith(currentArticleIndex: state.currentArticleIndex - 1);
     }
+  }
+
+  /// Fetch the next chunk of briefing articles.
+  Future<void> _fetchMoreArticles() async {
+    if (state.isLoadingMore) return;
+    state = state.copyWith(isLoadingMore: true);
+
+    try {
+      final data = await _newsService.fetchBriefing(
+        limit: _chunkSize,
+        offset: state.totalOffset,
+      );
+
+      final newArticles = (data['articles'] as List)
+          .map((json) => Article.fromJson(json))
+          .toList();
+
+      if (newArticles.isEmpty) {
+        state = state.copyWith(hasMore: false, isLoadingMore: false);
+        return;
+      }
+
+      state = state.copyWith(
+        sessionArticles: [...state.sessionArticles, ...newArticles],
+        totalOffset: state.totalOffset + newArticles.length,
+        hasMore: newArticles.length >= _chunkSize,
+        isLoadingMore: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoadingMore: false);
+    }
+  }
+
+  /// Mark an article as read on the backend.
+  void _markCurrentAsRead(int index) {
+    final article = state.sessionArticles[index];
+    final externalId = article.externalId ?? article.id;
+    if (externalId != null) {
+      _newsService.markAsRead(externalId).catchError((_) {});
+    }
+  }
+
+  /// Toggle bookmark for an article using the robust sync provider.
+  Future<void> toggleBookmark(Article article) async {
+    final articleId = article.id ?? article.externalId ?? '';
+    final isCurrentlyBookmarked = state.bookmarkedIds.contains(articleId);
+    
+    // 1. Optimistic UI update in the briefing state
+    final newBookmarks = Set<String>.from(state.bookmarkedIds);
+    if (isCurrentlyBookmarked) {
+      newBookmarks.remove(articleId);
+    } else {
+      newBookmarks.add(articleId);
+    }
+    state = state.copyWith(bookmarkedIds: newBookmarks);
+
+    // 2. Delegate to the robust sync provider (handles outbox, retries, etc.)
+    await _ref.read(bookmarkSyncProvider.notifier).toggleBookmark(
+      article, 
+      isCurrentlyBookmarked, // Passing the OLD state to determine the toggle action
+    );
   }
 
   Future<void> triggerTransition(String category) async {
@@ -96,6 +229,7 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
   }
 }
 
-final dailyBriefingProvider = StateNotifierProvider<DailyBriefingNotifier, DailyBriefingState>((ref) {
-  return DailyBriefingNotifier();
+final dailyBriefingProvider =
+    StateNotifierProvider<DailyBriefingNotifier, DailyBriefingState>((ref) {
+  return DailyBriefingNotifier(ref);
 });

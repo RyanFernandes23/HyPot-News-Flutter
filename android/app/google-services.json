@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "861371185126",
+    "project_id": "hypot-news",
+    "storage_bucket": "hypot-news.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:861371185126:android:90f552923401d090cb4827",
+        "android_client_info": {
+          "package_name": "com.hypot.hypot_news"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "861371185126-ji84jh6eddov4komm2bpj726ieaifrvm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqqTXzl3hs85bqC3gfeMgqQ8hAxbrwWwc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "861371185126-ji84jh6eddov4komm2bpj726ieaifrvm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
