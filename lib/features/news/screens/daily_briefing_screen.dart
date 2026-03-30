@@ -352,63 +352,6 @@ class _DailyBriefingScreenState extends ConsumerState<DailyBriefingScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ── Bookmark Button ──
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            final articleId = currentArticle.id ??
-                                currentArticle.externalId ??
-                                currentArticle.url;
-                            final wasBookmarked =
-                                briefingState.bookmarkedIds.contains(articleId);
-                            ref
-                                .read(dailyBriefingProvider.notifier)
-                                .toggleBookmark(currentArticle);
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).clearSnackBars();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(!wasBookmarked
-                                      ? 'Saved to bookmarks'
-                                      : 'Removed from bookmarks'),
-                                  duration: const Duration(seconds: 1),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: briefingState.bookmarkedIds.contains(
-                                      currentArticle.id ??
-                                          currentArticle.externalId ??
-                                          currentArticle.url)
-                                  ? const Color(0xFF4D7CFF).withOpacity(0.15)
-                                  : accentColor,
-                            ),
-                            child: Icon(
-                              briefingState.bookmarkedIds.contains(
-                                      currentArticle.id ??
-                                          currentArticle.externalId ??
-                                          currentArticle.url)
-                                  ? Icons.bookmark_rounded
-                                  : Icons.bookmark_outline_rounded,
-                              size: 20,
-                              color: briefingState.bookmarkedIds.contains(
-                                      currentArticle.id ??
-                                          currentArticle.externalId ??
-                                          currentArticle.url)
-                                  ? const Color(0xFF4D7CFF)
-                                  : textColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
                       IconButton(
                         icon: Icon(Icons.close_rounded, color: textColor),
                         onPressed: () {
