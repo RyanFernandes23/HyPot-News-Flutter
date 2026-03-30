@@ -90,12 +90,16 @@ class ProfileScreen extends ConsumerWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: [
-                _buildInterestChip(context, 'For You', true),
-                _buildInterestChip(context, 'Technology', true),
-                _buildInterestChip(context, 'Science', true),
-                _buildInterestChip(context, 'International', false),
-              ],
+              children: (user?['interests'] as List? ?? []).isEmpty
+                  ? [
+                      Text(
+                        'No interests selected',
+                        style: TextStyle(color: colorScheme.secondary),
+                      )
+                    ]
+                  : (user?['interests'] as List? ?? [])
+                      .map((interest) => _buildInterestChip(context, interest.toString(), true))
+                      .toList(),
             ),
             const SizedBox(height: 40),
             
