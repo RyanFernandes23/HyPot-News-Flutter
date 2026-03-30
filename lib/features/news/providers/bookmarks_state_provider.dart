@@ -26,12 +26,22 @@ final bookmarkedIdsProvider = Provider<Set<String>>((ref) {
   // Apply optimistic updates from the sync outbox
   // Note: We create a new Set to avoid modifying the one from the provider cache if it were shared
   final optimisticIds = Set<String>.from(ids);
+  final hiddenIds = {
+    ...syncState.pendingRemoves,
+    ...syncState.activeRemoveTombstones,
+  };
   
   // 1. Remove IDs that are pending deletion
-  optimisticIds.removeAll(syncState.pendingRemoves);
+  optimisticIds.removeAll(hiddenIds);
   
   // 2. Add IDs that are pending addition
-  optimisticIds.addAll(syncState.pendingAddArticles.keys);
+  for (final article in syncState.pendingAddArticles.values) {
+    if (article.id != null && article.id!.isNotEmpty) optimisticIds.add(article.id!);
+    if (article.externalId != null && article.externalId!.isNotEmpty) {
+      optimisticIds.add(article.externalId!);
+    }
+    if (article.url.isNotEmpty) optimisticIds.add(article.url);
+  }
 
   return optimisticIds;
 });

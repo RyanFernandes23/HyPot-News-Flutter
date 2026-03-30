@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../features/news/models/article.dart';
+import '../../features/news/providers/daily_briefing_provider.dart';
 
 class AudioState {
   final bool isPlaying;
@@ -37,8 +38,9 @@ class AudioState {
 
 class AudioNotifier extends StateNotifier<AudioState> {
   final AudioPlayer _player = AudioPlayer();
+  final Ref _ref;
 
-  AudioNotifier() : super(AudioState()) {
+  AudioNotifier(this._ref) : super(AudioState()) {
     _init();
   }
 
@@ -59,27 +61,45 @@ class AudioNotifier extends StateNotifier<AudioState> {
 
     _player.processingStateStream.listen((state) {
       if (state == ProcessingState.completed) {
-        // Handle completion
+        _handleAudioCompletion();
       }
     });
   }
 
-  /// Build full audio URL from the article's HLS base URL.
-  String? _resolveAudioUrl(Article article) {
-    final baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+  void _handleAudioCompletion() {
+    // Check if we have access to daily briefing provider and are in a briefing context
+    try {
+      final briefingNotifier = _ref.read(dailyBriefingProvider.notifier);
+      final briefingState = briefingNotifier.state;
 
-    // Prefer headline audio, fallback to summary audio
-    final hlsPath = article.headlineHlsBaseUrl ?? article.summaryHlsBaseUrl;
-    if (hlsPath != null && hlsPath.isNotEmpty) {
-      // The backend returns paths like /api/v1/audio/{id}/{type}/{file}
-      // API_BASE_URL already includes /api/v1, so strip that prefix if present
-      if (hlsPath.startsWith('/api/v1/')) {
-        return '$baseUrl${hlsPath.substring(7)}'; // Remove /api/v1 since baseUrl has it
+      // Only auto-advance if we're actively in a briefing session
+      if (briefingState.isActive) {
+        // Try to advance to next article
+        briefingNotifier.nextArticle();
       }
-      return '$baseUrl$hlsPath';
+    } catch (e) {
+      // If we can't access the briefing provider or any other error, just do nothing
+      // This allows the audio player to work outside briefing context too
+    }
+  }
+
+  String? _resolveAudioUrlFromPath(String? path) {
+    if (path == null || path.isEmpty) return null;
+    var baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
     }
 
-    return article.audioUrl;
+    // The DB stores paths like articles/{id}/{type}/{file}
+    // The backend proxy is at /api/v1/audio/{id}/{type}/{file}
+    if (path.startsWith('articles/')) {
+      final proxyPath = path.replaceFirst('articles/', '/audio/');
+      return '$baseUrl$proxyPath';
+    }
+    
+    // Fallback for any other path formats
+    final leadingSlash = path.startsWith('/') ? '' : '/';
+    return '$baseUrl$leadingSlash$path';
   }
 
   Future<void> playArticle(Article article) async {
@@ -99,13 +119,25 @@ class AudioNotifier extends StateNotifier<AudioState> {
         position: Duration.zero,
       );
 
-      final url = _resolveAudioUrl(article);
-      if (url == null || url.isEmpty) {
+      final headlineUrl = _resolveAudioUrlFromPath(article.headlineHlsBaseUrl);
+      final summaryUrl = _resolveAudioUrlFromPath(article.summaryHlsBaseUrl);
+      
+      final List<AudioSource> sources = [];
+      if (headlineUrl != null) sources.add(AudioSource.uri(Uri.parse(headlineUrl)));
+      if (summaryUrl != null) sources.add(AudioSource.uri(Uri.parse(summaryUrl)));
+      
+      // Fallback to legacy audioUrl
+      if (sources.isEmpty && article.audioUrl != null) {
+        sources.add(AudioSource.uri(Uri.parse(article.audioUrl!)));
+      }
+
+      if (sources.isEmpty) {
         state = state.copyWith(isPlaying: false);
         return;
       }
 
-      await _player.setUrl(url);
+      final playlist = ConcatenatingAudioSource(children: sources);
+      await _player.setAudioSource(playlist);
       await _player.play();
     } catch (e) {
       state = state.copyWith(isPlaying: false);
@@ -148,5 +180,5 @@ class AudioNotifier extends StateNotifier<AudioState> {
 }
 
 final audioProvider = StateNotifierProvider<AudioNotifier, AudioState>((ref) {
-  return AudioNotifier();
+  return AudioNotifier(ref);
 });

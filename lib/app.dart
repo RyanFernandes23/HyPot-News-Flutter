@@ -5,22 +5,44 @@ import 'core/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/onboarding/screens/onboarding_config_screen.dart';
 import 'features/navigation/screens/main_navigation_screen.dart';
+import 'features/news/screens/daily_briefing_screen.dart';
 
-class HypotApp extends ConsumerWidget {
+import 'services/notification_service.dart';
+
+class HypotApp extends ConsumerStatefulWidget {
   const HypotApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HypotApp> createState() => _HypotAppState();
+}
+
+class _HypotAppState extends ConsumerState<HypotApp> {
+  bool _notificationsInitialized = false;
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
     final authState = ref.watch(authProvider);
 
+    // Initialize notifications once user is authenticated
+    if (authState.status == AuthStatus.authenticated && !_notificationsInitialized) {
+      _notificationsInitialized = true;
+      // Use microtask to avoid building while state is updating
+      Future.microtask(() => ref.read(notificationProvider).init());
+    }
+
     return MaterialApp(
+      key: ValueKey(_appShellKey(authState)),
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       home: _buildHome(authState),
     );
+  }
+
+  String _appShellKey(AuthState authState) {
+    return '${authState.status.name}:${authState.hasSeenBriefing}';
   }
 
   Widget _buildHome(AuthState authState) {
@@ -32,6 +54,10 @@ class HypotApp extends ConsumerWidget {
       case AuthStatus.onboardingRequired:
         return const OnboardingConfigScreen();
       case AuthStatus.authenticated:
+        // Check if user has seen the daily briefing
+        if (!authState.hasSeenBriefing) {
+          return const DailyBriefingScreen();
+        }
         return const MainNavigationScreen();
     }
   }

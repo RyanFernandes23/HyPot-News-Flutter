@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -72,6 +73,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _googleSignIn() async {
     await ref.read(authProvider.notifier).loginWithGoogle();
+  }
+
+  Future<void> _googleSignInWithAnotherAccount() async {
+    await ref.read(authProvider.notifier).loginWithGoogle(
+      forceAccountPicker: true,
+    );
+  }
+
+  String _googleIconAsset() {
+    return 'assets/auth/google_logo.svg';
   }
 
   @override
@@ -405,31 +416,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     ),
                                     foregroundColor: textColor,
                                   ),
-                                  icon: Container(
+                                  icon: SvgPicture.asset(
+                                    _googleIconAsset(),
                                     width: 20,
                                     height: 20,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      'G',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF4285F4),
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
+                                    fit: BoxFit.contain,
+                                    placeholderBuilder: (context) => 
+                                        const _GoogleIconFallback(),
                                   ),
-                                  label: const Text(
-                                    'Continue with Google',
-                                    style: TextStyle(
+                                  label: Text(
+                                    _isLogin
+                                        ? 'Continue with Google'
+                                        : 'Sign up with Google',
+                                    style: const TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ),
                               ),
+                              if (_isLogin) ...[
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: authState.status == AuthStatus.loading
+                                      ? null
+                                      : _googleSignInWithAnotherAccount,
+                                  child: Text(
+                                    'Switch Google account',
+                                    style: TextStyle(
+                                      color: accentColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -465,6 +486,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   ),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GoogleIconFallback extends StatelessWidget {
+  const _GoogleIconFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 20,
+      height: 20,
+      child: ColoredBox(
+        color: Colors.transparent,
+        child: Center(
+          child: Text(
+            'G',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF4285F4),
             ),
           ),
         ),

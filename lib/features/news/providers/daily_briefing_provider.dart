@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/article.dart';
 import '../../../services/news_service.dart';
 import '../providers/bookmark_sync_provider.dart';
+import '../../../core/providers/audio_provider.dart';
 
 class DailyBriefingState {
   final bool isActive;
@@ -79,32 +81,48 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
         limit: _chunkSize,
         offset: 0,
       );
-      final articles = (data['articles'] as List)
-          .map((json) => Article.fromJson(json))
-          .toList();
+      final articlesList = (data['articles'] as List);
+      final articles = <Article>[];
+      
+      for (final json in articlesList) {
+        try {
+          articles.add(Article.fromJson(json as Map<String, dynamic>));
+        } catch (e) {
+          debugPrint('Error parsing briefing article: $e');
+          // Skip malformed articles
+        }
+      }
+      final playableArticles = articles.where(_isPlayableArticle).toList();
 
       // 2. Fetch current bookmarks to initialize state
-      final bookmarksData = await _newsService.fetchBookmarks();
-      final bookmarks = (bookmarksData['articles'] as List? ?? [])
-          .map((json) => Article.fromJson(json))
-          .toList();
-      
+      final Map<String, dynamic> bookmarksData = await _newsService.fetchBookmarks();
+      final List bookmarkJsonList = (bookmarksData['articles'] as List? ?? []);
       final bookmarkIds = <String>{};
-      for (final b in bookmarks) {
-        if (b.id != null) bookmarkIds.add(b.id!);
-        if (b.externalId != null) bookmarkIds.add(b.externalId!);
-        bookmarkIds.add(b.url);
+      
+      for (final json in bookmarkJsonList) {
+        try {
+          final art = Article.fromJson(json as Map<String, dynamic>);
+          final id = art.id ?? art.externalId ?? art.url;
+          bookmarkIds.add(id);
+        } catch (e) {
+          debugPrint('Error parsing bookmark: $e');
+        }
       }
 
       state = DailyBriefingState(
         isActive: true,
-        sessionArticles: articles,
+        sessionArticles: playableArticles,
         currentArticleIndex: 0,
-        hasMore: articles.length >= _chunkSize,
+        hasMore: playableArticles.length >= _chunkSize,
         totalOffset: articles.length,
         bookmarkedIds: bookmarkIds,
         isLoadingMore: false,
       );
+
+      // Start playing the first article automatically
+      if (playableArticles.isNotEmpty) {
+        _ref.read(audioProvider.notifier).playArticle(playableArticles[0]);
+      }
     } catch (e) {
       state = DailyBriefingState(isActive: false);
     }
@@ -131,6 +149,9 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
       final newIndex = state.currentArticleIndex + 1;
       state = state.copyWith(currentArticleIndex: newIndex);
 
+      // Trigger audio playback for the next article
+      _ref.read(audioProvider.notifier).playArticle(state.sessionArticles[newIndex]);
+
       // Mark as read
       _markCurrentAsRead(newIndex);
 
@@ -148,7 +169,11 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
 
   void previousArticle() {
     if (state.currentArticleIndex > 0) {
-      state = state.copyWith(currentArticleIndex: state.currentArticleIndex - 1);
+      final newIndex = state.currentArticleIndex - 1;
+      state = state.copyWith(currentArticleIndex: newIndex);
+      
+      // Trigger audio playback for the previous article
+      _ref.read(audioProvider.notifier).playArticle(state.sessionArticles[newIndex]);
     }
   }
 
@@ -165,6 +190,7 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
 
       final newArticles = (data['articles'] as List)
           .map((json) => Article.fromJson(json))
+          .where(_isPlayableArticle)
           .toList();
 
       if (newArticles.isEmpty) {
@@ -181,6 +207,13 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
     } catch (e) {
       state = state.copyWith(isLoadingMore: false);
     }
+  }
+
+  bool _isPlayableArticle(Article article) {
+    if (article.audioStatus != 'ready') return false;
+    return (article.headlineHlsBaseUrl?.isNotEmpty ?? false) ||
+        (article.summaryHlsBaseUrl?.isNotEmpty ?? false) ||
+        (article.audioUrl?.isNotEmpty ?? false);
   }
 
   /// Mark an article as read on the backend.

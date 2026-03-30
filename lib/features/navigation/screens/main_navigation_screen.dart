@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../home/screens/home_screen.dart';
 import '../../news/screens/news_view_screen.dart';
 import '../../profile/screens/profile_screen.dart';
-import '../../search/screens/search_screen.dart';
 import '../../../core/providers/navigation_provider.dart';
 import '../../news/screens/daily_briefing_screen.dart';
 import '../../news/providers/daily_briefing_provider.dart';
+import '../../bookmarks/screens/bookmarks_screen.dart';
 
 class MainNavigationScreen extends ConsumerWidget {
   const MainNavigationScreen({super.key});
@@ -18,9 +17,8 @@ class MainNavigationScreen extends ConsumerWidget {
 
     final List<Widget> screens = [
       const NewsViewScreen(topic: 'For You', isTab: true),
-      const HomeScreen(),
+      const BookmarksScreen(isTab: true),
       const Scaffold(body: Center(child: Text('Daily Briefing Tab'))),
-      const SearchScreen(),
       const ProfileScreen(isTab: true),
     ];
 
@@ -55,11 +53,14 @@ class MainNavigationScreen extends ConsumerWidget {
               currentIndex: selectedIndex,
               onTap: (index) {
                 if (index == 2) {
-                  // Start briefing from backend
-                  ref.read(dailyBriefingProvider.notifier).startBriefingFromBackend();
+                  // Start briefing from backend (Previously index 3)
+                  ref
+                      .read(dailyBriefingProvider.notifier)
+                      .startBriefingFromBackend();
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const DailyBriefingScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const DailyBriefingScreen()),
                   );
                 } else {
                   ref.read(navigationProvider.notifier).setIndex(index);
@@ -68,10 +69,14 @@ class MainNavigationScreen extends ConsumerWidget {
               backgroundColor: Colors.transparent,
               elevation: 0,
               type: BottomNavigationBarType.fixed,
-              selectedItemColor: colorScheme.brightness == Brightness.dark ? Colors.white : Colors.black,
+              selectedItemColor: colorScheme.brightness == Brightness.dark
+                  ? Colors.white
+                  : Colors.black,
               unselectedItemColor: colorScheme.secondary,
-              selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+              selectedLabelStyle:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              unselectedLabelStyle:
+                  const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
               items: const [
                 BottomNavigationBarItem(
                   icon: Icon(Icons.article_outlined),
@@ -79,19 +84,14 @@ class MainNavigationScreen extends ConsumerWidget {
                   label: 'Feed',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.grid_view_rounded),
-                  activeIcon: Icon(Icons.grid_view_rounded),
-                  label: 'Discover',
+                  icon: Icon(Icons.bookmark_outline_rounded),
+                  activeIcon: Icon(Icons.bookmark_rounded),
+                  label: 'Saved',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.auto_awesome_rounded),
                   activeIcon: Icon(Icons.auto_awesome_rounded),
                   label: 'Briefing',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.search_rounded),
-                  activeIcon: Icon(Icons.search_rounded),
-                  label: 'Search',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person_outline),

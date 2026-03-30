@@ -41,7 +41,8 @@ class Article {
   /// Construct from backend JSON response (news_articles table format).
   factory Article.fromJson(Map<String, dynamic> json) {
     // Parse summarized_content into highlight bullets
-    final rawSummary = json['summarized_content'] as String? ?? '';
+    final rawSummary = json['summarized_content'] as String? ?? 
+                      json['summary'] as String? ?? '';
     final highlights = rawSummary.isNotEmpty
         ? rawSummary
             .split(RegExp(r'[.\n]'))
@@ -50,24 +51,78 @@ class Article {
             .toList()
         : <String>[];
 
+    // Robust source extraction
+    String extractedSource = json['source_name'] as String? ?? '';
+    if (extractedSource.isEmpty || extractedSource.toLowerCase() == 'unknown') {
+      final sourceObj = json['source'];
+      if (sourceObj is Map) {
+        extractedSource = sourceObj['title']?.toString() ?? '';
+      } else if (sourceObj is String) {
+        extractedSource = sourceObj;
+      }
+      
+      if (extractedSource.isEmpty || extractedSource.toLowerCase() == 'unknown') {
+        extractedSource = json['descriptor_source']?.toString() ?? '';
+      }
+    }
+
+    // Robust category extraction
+    String extractedCategory = json['category'] as String? ?? 'General';
+    if (extractedCategory.toLowerCase() == 'uncategorized') {
+      extractedCategory = 'General';
+    }
+
+    // Robust image extraction
+    String extractedImageUrl = json['url_to_image'] as String? ?? '';
+    if (extractedImageUrl.isEmpty) {
+      extractedImageUrl = _parseImageUrl(json);
+    }
+
     return Article(
       id: json['id']?.toString(),
-      externalId: json['external_id'] as String?,
-      category: json['category'] as String? ?? 'General',
-      headline: json['headline'] as String? ?? '',
+      externalId: json['external_id'] as String? ?? json['id']?.toString(),
+      category: extractedCategory,
+      headline: json['headline'] as String? ?? json['title'] as String? ?? '',
       summarizedContent: rawSummary,
       summary: rawSummary.length > 120 ? '${rawSummary.substring(0, 120)}...' : rawSummary,
-      source: json['source_name'] as String? ?? '',
+      source: extractedSource,
       author: json['author'] as String?,
-      imageUrl: json['url_to_image'] as String? ?? '',
-      url: json['source_url'] as String? ?? 'https://google.com',
-      publishedAt: json['published_at'] as String?,
+      imageUrl: extractedImageUrl,
+      url: json['source_url'] as String? ?? json['url'] as String? ?? json['link'] as String? ?? 'https://google.com',
+      publishedAt: json['published_at'] as String? ?? json['published'] as String?,
       headlineHlsBaseUrl: json['headline_hls_base_url'] as String?,
       summaryHlsBaseUrl: json['summary_hls_base_url'] as String?,
       durationSeconds: (json['duration_seconds'] as num?)?.toDouble(),
       audioStatus: json['audio_status'] as String?,
       highlights: highlights,
+      audioUrl: json['audio_url'] as String?,
     );
+  }
+
+  /// Helper to extract image URL from various RSS/JSON formats
+  static String _parseImageUrl(Map<String, dynamic> json) {
+    // 1. Try media_content
+    final mediaContent = json['media_content'];
+    if (mediaContent is List && mediaContent.isNotEmpty) {
+      final first = mediaContent[0];
+      if (first is Map && first['url'] != null) return first['url'].toString();
+    } else if (mediaContent is Map && mediaContent['url'] != null) {
+      return mediaContent['url'].toString();
+    }
+
+    // 2. Try media_thumbnail
+    final mediaThumb = json['media_thumbnail'];
+    if (mediaThumb is List && mediaThumb.isNotEmpty) {
+      final first = mediaThumb[0];
+      if (first is Map && first['url'] != null) return first['url'].toString();
+    }
+
+    // 3. Try standard image object
+    if (json['image'] is Map && json['image']['url'] != null) {
+      return json['image']['url'].toString();
+    }
+
+    return '';
   }
 
   /// Construct from a simple map (legacy / RSS entry format).
@@ -101,6 +156,7 @@ class Article {
       'summary_hls_base_url': summaryHlsBaseUrl,
       'duration_seconds': durationSeconds,
       'audio_status': audioStatus,
+      'audio_url': audioUrl,
     };
   }
 
@@ -109,11 +165,17 @@ class Article {
     return {
       'id': externalId ?? url,
       'link': url,
+      'source_url': url,
       'title': headline,
+      'headline': headline,
       'summary': summarizedContent ?? summary ?? '',
+      'summarized_content': summarizedContent ?? summary ?? '',
       'published': publishedAt ?? '',
+      'published_at': publishedAt ?? '',
       'source': {'title': source},
+      'source_name': source,
       'media_content': [{'url': imageUrl}],
+      'url_to_image': imageUrl,
       'category': category,
     };
   }

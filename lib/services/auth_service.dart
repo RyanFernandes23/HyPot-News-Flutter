@@ -3,6 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'api_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final authServiceProvider = Provider((ref) => AuthService());
 
 /// Handles all authentication flows: email/password, Google OAuth, token management.
 class AuthService {
@@ -53,13 +56,19 @@ class AuthService {
 
   /// Opens native Google Sign-in flow. On success, signs in to Supabase
   /// using the ID Token.
-  Future<bool> loginWithGoogle() async {
+  Future<bool> loginWithGoogle({bool forceAccountPicker = false}) async {
     try {
       final webClientId = dotenv.env['GOOGLE_CLIENT_ID_WEB'];
       
       final googleSignIn = GoogleSignIn(
         serverClientId: webClientId,
       );
+
+      if (forceAccountPicker) {
+        try {
+          await googleSignIn.signOut();
+        } catch (_) {}
+      }
 
       final googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
@@ -159,6 +168,32 @@ class AuthService {
     try {
       await _supabase.auth.signOut();
     } catch (_) {}
+  }
+
+  /// Update user profile (name/avatar).
+  Future<Map<String, dynamic>> updateProfile({
+    String? fullName,
+    String? avatarUrl,
+  }) async {
+    try {
+      final response = await _api.dio.put('/auth/profile', data: {
+        if (fullName != null) 'full_name': fullName,
+        if (avatarUrl != null) 'avatar_url': avatarUrl,
+      });
+      return response.data;
+    } on DioException catch (e) {
+      throw _extractError(e);
+    }
+  }
+
+  /// Sync FCM token to backend for push notifications.
+  Future<void> updateFcmToken(String token) async {
+    try {
+      await _api.dio.put('/auth/fcm-token', data: {'fcm_token': token});
+    } on DioException catch (e) {
+      print('Failed to sync FCM token: ${e.response?.statusCode} - ${e.message}');
+      // Don't throw here, as this is a background sync and we don't want to break the app.
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────

@@ -7,6 +7,8 @@ import '../providers/daily_briefing_provider.dart';
 import '../widgets/category_transition_overlay.dart';
 import '../../../services/news_service.dart';
 import '../widgets/news_article_page.dart';
+import '../widgets/news_article_shimmer.dart';
+import '../../search/screens/search_screen.dart';
 
 class NewsViewScreen extends ConsumerStatefulWidget {
   final String topic;
@@ -32,11 +34,26 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
   final Map<String, String?> _categoryCursors = {};
   final Map<String, bool> _categoryLoading = {};
   final Map<String, bool> _categoryHasMore = {};
+  final Map<String, bool> _categoryHasShownAllCaughtUp = {};
+
+  // Deduplication tracking to prevent same article in multiple categories
+  final Set<String> _shownArticleIds = {};
+  final Set<String> _forYouArticleIds = {};
 
   final List<String> _topics = [
-    'For You', 'International', 'Finance', 'Healthcare', 'Good News',
-    'Technology', 'Sports', 'Entertainment', 'Science', 'Business',
-    'Travel', 'Lifestyle'
+    'For You',
+    'International',
+    'Finance',
+    'Regional',
+    'Healthcare',
+    'Good News',
+    'Technology',
+    'Sports',
+    'Entertainment',
+    'Science',
+    'Business',
+    'Travel',
+    'Lifestyle'
   ];
 
   @override
@@ -44,7 +61,8 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
     super.initState();
     _currentTopic = widget.topic;
     final initialIndex = _topics.indexOf(_currentTopic);
-    _horizontalController = PageController(initialPage: initialIndex != -1 ? initialIndex : 0);
+    _horizontalController =
+        PageController(initialPage: initialIndex != -1 ? initialIndex : 0);
     _navbarScrollController = ScrollController();
     _topicKeys = List.generate(_topics.length, (index) => GlobalKey());
 
@@ -70,49 +88,81 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
     }
   }
 
-  Future<void> _loadCategoryIfNeeded(String category) async {
-    if (_categoryArticles.containsKey(category)) return;
-    await _fetchLiveNews(category);
+  Future<void> _loadCategoryIfNeeded(String category,
+      {bool forceRefresh = false}) async {
+    if (_categoryArticles.containsKey(category) && !forceRefresh) return;
+
+    // For 'For You' category, load all articles (no exclusions)
+    // For other categories, exclude articles already shown in 'For You' to prevent duplicates
+    if (category == 'For You') {
+      await _fetchLiveNews(category);
+    } else {
+      await _fetchLiveNews(category, excludeIds: _forYouArticleIds);
+    }
   }
 
-  Future<void> _fetchLiveNews(String category, {bool loadMore = false}) async {
+  Future<void> _fetchLiveNews(String category,
+      {bool loadMore = false, Set<String>? excludeIds}) async {
     if (_categoryLoading[category] == true) return;
 
     setState(() => _categoryLoading[category] = true);
 
     try {
       final data = await _newsService.fetchLiveNews(
-        category: category,
+        category: category.toLowerCase(),
         limit: 15,
         before: loadMore ? _categoryCursors[category] : null,
       );
 
-      final articles = (data['articles'] as List)
-          .map((json) {
-            // Live news returns RSS entries, adapt them
-            return Article(
-              externalId: (json['id'] ?? json['link'])?.toString(),
-              category: category,
-              headline: json['title']?.toString() ?? '',
-              summary: json['summary']?.toString() ?? '',
-              summarizedContent: json['summary']?.toString() ?? '',
-              source: json['descriptor_source']?.toString() ?? (json['source'] is Map ? json['source']['title'] : json['source'])?.toString() ?? '',
-              imageUrl: _extractImageUrl(json),
-              url: json['link']?.toString() ?? '',
-              highlights: _extractHighlights(json['summary']?.toString() ?? ''),
-            );
-          })
-          .toList();
+      final articles = (data['articles'] as List).map((json) {
+        // Live news returns RSS entries, adapt them
+        return Article(
+          externalId: (json['id'] ?? json['link'])?.toString(),
+          category: category,
+          headline: json['title']?.toString() ?? '',
+          summary: json['summary']?.toString() ?? '',
+          summarizedContent: json['summary']?.toString() ?? '',
+          source: json['descriptor_source']?.toString() ??
+              (json['source'] is Map ? json['source']['title'] : json['source'])
+                  ?.toString() ??
+              '',
+          imageUrl: _extractImageUrl(json),
+          url: json['link']?.toString() ?? '',
+          highlights: _extractHighlights(json['summary']?.toString() ?? ''),
+        );
+      }).where((article) {
+        final id = article.id ?? article.externalId ?? article.url;
+        if (id == null || id.isEmpty) {
+          return true; // Include articles without ID (safer fallback)
+        }
+        return !(excludeIds?.contains(id) ?? false);
+      }).toList();
 
       setState(() {
         if (loadMore) {
-          _categoryArticles[category] = [...(_categoryArticles[category] ?? []), ...articles];
+          _categoryArticles[category] = [
+            ...(_categoryArticles[category] ?? []),
+            ...articles
+          ];
         } else {
           _categoryArticles[category] = articles;
         }
         _categoryCursors[category] = data['next_cursor'] as String?;
-        _categoryHasMore[category] = articles.isNotEmpty && data['next_cursor'] != null;
+        _categoryHasMore[category] =
+            articles.isNotEmpty && data['next_cursor'] != null;
+        _categoryHasShownAllCaughtUp[category] = false;
         _categoryLoading[category] = false;
+
+        // Track shown articles for deduplication
+        for (final article in articles) {
+          final id = article.id ?? article.externalId ?? article.url;
+          if (id != null && id.isNotEmpty) {
+            _shownArticleIds.add(id);
+            if (category == 'For You') {
+              _forYouArticleIds.add(id);
+            }
+          }
+        }
       });
     } catch (e) {
       setState(() => _categoryLoading[category] = false);
@@ -121,7 +171,7 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
 
   String _extractImageUrl(dynamic json) {
     if (json is! Map) return '';
-    
+
     // 1. Try media_content (List or Single)
     final mediaContent = json['media_content'];
     if (mediaContent is List && mediaContent.isNotEmpty) {
@@ -149,7 +199,9 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
         if (link is Map) {
           final type = link['type']?.toString().toLowerCase() ?? '';
           final rel = link['rel']?.toString().toLowerCase() ?? '';
-          if (type.startsWith('image/') || rel == 'enclosure' || rel == 'image') {
+          if (type.startsWith('image/') ||
+              rel == 'enclosure' ||
+              rel == 'image') {
             final href = (link['href'] ?? link['url'])?.toString();
             if (href != null && href.isNotEmpty) return href;
           }
@@ -242,15 +294,10 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
               final isLoading = _categoryLoading[category] == true;
 
               if (articles.isEmpty && isLoading) {
-                return Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: colorScheme.onSurface.withOpacity(0.5),
-                    ),
-                  ),
+                return PageView.builder(
+                  scrollDirection: Axis.vertical,
+                  itemCount: 3,
+                  itemBuilder: (context, index) => const NewsArticleShimmer(),
                 );
               }
 
@@ -259,11 +306,13 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.inbox_outlined, size: 48, color: colorScheme.secondary),
+                      Icon(Icons.inbox_outlined,
+                          size: 48, color: colorScheme.secondary),
                       const SizedBox(height: 16),
                       Text(
                         'No stories in $category',
-                        style: TextStyle(color: colorScheme.secondary, fontSize: 15),
+                        style: TextStyle(
+                            color: colorScheme.secondary, fontSize: 15),
                       ),
                     ],
                   ),
@@ -272,13 +321,28 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
 
               return NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
-                  if (notification is ScrollStartNotification && notification.metrics.axis == Axis.vertical) {
+                  if (notification is ScrollStartNotification &&
+                      notification.metrics.axis == Axis.vertical) {
                     if (!_isScrollingVertical) {
                       setState(() => _isScrollingVertical = true);
                     }
-                  } else if (notification is ScrollEndNotification && notification.metrics.axis == Axis.vertical) {
+                  } else if (notification is ScrollEndNotification &&
+                      notification.metrics.axis == Axis.vertical) {
                     if (_isScrollingVertical) {
                       setState(() => _isScrollingVertical = false);
+                    }
+                  } else if (notification is OverscrollNotification &&
+                      notification.metrics.axis == Axis.vertical &&
+                      notification.overscroll > 0) {
+                    // Bottom overscroll - user pulled past the end of content
+                    if (!_categoryHasMore[category]! &&
+                        !_categoryHasShownAllCaughtUp[category]!) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('You\'re all caught up')),
+                      );
+                      setState(() {
+                        _categoryHasShownAllCaughtUp[category] = true;
+                      });
                     }
                   }
                   return false;
@@ -290,7 +354,9 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                     // Mark as read
                     final article = articles[articleIndex];
                     if (article.externalId != null) {
-                      _newsService.markAsRead(article.externalId!).catchError((_) {});
+                      _newsService
+                          .markAsRead(article.externalId!)
+                          .catchError((_) {});
                     }
 
                     // Prefetch more when near end
@@ -342,62 +408,116 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
                   ),
                   child: SafeArea(
                     bottom: false,
-                    child: SingleChildScrollView(
-                      controller: _navbarScrollController,
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: _topics.map((topic) {
-                          final isSelected = topic == _currentTopic;
-                          final index = _topics.indexOf(topic);
-                          return GestureDetector(
-                            key: _topicKeys[index],
-                            onTap: () {
-                              _horizontalController.animateToPage(
-                                index,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              );
-                              setState(() {
-                                _currentTopic = topic;
-                              });
-                              _scrollToCategory(index);
-                              _loadCategoryIfNeeded(topic);
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 20),
-                              color: Colors.transparent,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  AnimatedDefaultTextStyle(
-                                    duration: const Duration(milliseconds: 200),
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black)
-                                          : colorScheme.onSurface.withOpacity(0.4),
-                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                      fontSize: 13,
-                                      letterSpacing: 0.5,
-                                    ),
-                                    child: Text(topic),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    height: 2,
-                                    width: isSelected ? 16 : 0,
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
-                                      borderRadius: BorderRadius.circular(1),
-                                    ),
-                                  ),
+                    child: Row(
+                      children: [
+                        // ── Fading Scrollable Categories ──────────────────────
+                        Expanded(
+                          child: ShaderMask(
+                            shaderCallback: (Rect bounds) {
+                              return LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.black,
+                                  Colors.black.withOpacity(0.0),
+                                  Colors.black.withOpacity(0.0),
+                                  Colors.black,
                                 ],
+                                stops: const [0.0, 0.05, 0.95, 1.0],
+                              ).createShader(bounds);
+                            },
+                            blendMode: BlendMode.dstOut,
+                            child: SingleChildScrollView(
+                              controller: _navbarScrollController,
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: Row(
+                                children: _topics.map((topic) {
+                                  final isSelected = topic == _currentTopic;
+                                  final index = _topics.indexOf(topic);
+                                  return GestureDetector(
+                                    key: _topicKeys[index],
+                                    onTap: () {
+                                      _horizontalController.animateToPage(
+                                        index,
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut,
+                                      );
+                                      setState(() {
+                                        _currentTopic = topic;
+                                      });
+                                      _scrollToCategory(index);
+                                      _loadCategoryIfNeeded(topic);
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.only(right: 25),
+                                      color: Colors.transparent,
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          AnimatedDefaultTextStyle(
+                                            duration: const Duration(milliseconds: 200),
+                                            style: TextStyle(
+                                              color: isSelected
+                                                  ? (Theme.of(context).brightness ==
+                                                          Brightness.dark
+                                                      ? Colors.white
+                                                      : Colors.black)
+                                                  : colorScheme.onSurface
+                                                      .withOpacity(0.4),
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                              fontSize: 13,
+                                              letterSpacing: 0.5,
+                                            ),
+                                            child: Text(topic),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          AnimatedContainer(
+                                            duration: const Duration(milliseconds: 200),
+                                            height: 2,
+                                            width: isSelected ? 16 : 0,
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).brightness ==
+                                                      Brightness.dark
+                                                  ? Colors.white
+                                                  : Colors.black,
+                                              borderRadius: BorderRadius.circular(1),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             ),
-                          );
-                        }).toList(),
-                      ),
+                          ),
+                        ),
+                        // ── Sticky Search Button ─────────────────────────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => const SearchScreen()),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.search_rounded,
+                                  size: 22, color: colorScheme.primary),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -419,8 +539,10 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
           Consumer(
             builder: (context, ref, child) {
               final briefingState = ref.watch(dailyBriefingProvider);
-              if (briefingState.isTransitioning && briefingState.nextCategory != null) {
-                return CategoryTransitionOverlay(categoryName: briefingState.nextCategory!);
+              if (briefingState.isTransitioning &&
+                  briefingState.nextCategory != null) {
+                return CategoryTransitionOverlay(
+                    categoryName: briefingState.nextCategory!);
               }
               return const SizedBox.shrink();
             },

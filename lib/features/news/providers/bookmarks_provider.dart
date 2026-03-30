@@ -1,38 +1,51 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/article.dart';
-import '../../../services/news_service.dart';
 import 'bookmark_sync_provider.dart';
+import 'raw_bookmarks_provider.dart';
 
-final bookmarksProvider = FutureProvider.autoDispose<List<Article>>((ref) async {
-  final newsService = NewsService();
-  // We refresh this provider whenever a bookmark is toggled or synced
-  final syncState = ref.watch(bookmarkSyncProvider); 
-  
-  try {
-    final response = await newsService.fetchBookmarks();
-    final List<dynamic> articlesJson = response['articles'] ?? [];
-    var articles = articlesJson.map((json) => Article.fromJson(json)).toList();
+/// The optimistic bookmarks provider that combines backend data with local pending syncs.
 
-    // Optimistic UI for the list:
+/// The optimistic bookmarks provider that combines backend data with local pending syncs.
+/// Watching this provider will NOT trigger a backend fetch when a local bookmark is toggled.
+final bookmarksProvider = Provider<AsyncValue<List<Article>>>((ref) {
+  final rawAsync = ref.watch(rawBookmarksProvider);
+  final syncState = ref.watch(bookmarkSyncProvider);
+
+  return rawAsync.whenData((articles) {
+    var result = List<Article>.from(articles);
+    final hiddenIds = {
+      ...syncState.pendingRemoves,
+      ...syncState.activeRemoveTombstones,
+    };
+
     // 1. Remove articles that are pending deletion
-    articles = articles.where((a) {
-      final id = a.id ?? a.externalId ?? a.url;
-      return !syncState.pendingRemoves.contains(id);
+    result = result.where((a) {
+      final ids = _articleIdentifiers(a);
+      return ids.every((id) => !hiddenIds.contains(id));
     }).toList();
 
-    // 2. Add articles that are pending addition (if not already present from backend)
-    final existingIds = articles.map((a) => a.id ?? a.externalId ?? a.url).toSet();
+    // 2. Add articles that are pending addition
+    final existingIds = <String>{};
+    for (final article in result) {
+      existingIds.addAll(_articleIdentifiers(article));
+    }
     for (final pending in syncState.pendingAddArticles.values) {
-      final pid = pending.id ?? pending.externalId ?? pending.url;
-      if (!existingIds.contains(pid)) {
-        // Add pending ones to the top for immediate feedback
-        articles.insert(0, pending);
+      final pendingIds = _articleIdentifiers(pending);
+      if (pendingIds.every((id) => !existingIds.contains(id))) {
+        result.insert(0, pending);
+        existingIds.addAll(pendingIds);
       }
     }
 
-    return articles;
-  } catch (e) {
-    // In case of error (e.g. offline), at least show the pending bookmarks from the outbox
-    return syncState.pendingAddArticles.values.toList();
-  }
+    return result;
+  });
 });
+
+Set<String> _articleIdentifiers(Article article) {
+  return {
+    if (article.id != null && article.id!.isNotEmpty) article.id!,
+    if (article.externalId != null && article.externalId!.isNotEmpty)
+      article.externalId!,
+    if (article.url.isNotEmpty) article.url,
+  };
+}

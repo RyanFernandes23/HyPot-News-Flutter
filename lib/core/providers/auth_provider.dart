@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/auth_service.dart';
+import '../../features/news/providers/bookmark_sync_provider.dart';
 
 enum AuthStatus { loading, unauthenticated, authenticated, onboardingRequired }
 
@@ -9,11 +10,13 @@ class AuthState {
   final AuthStatus status;
   final Map<String, dynamic>? user;
   final String? errorMessage;
+  final bool hasSeenBriefing;
 
   const AuthState({
     this.status = AuthStatus.loading,
     this.user,
     this.errorMessage,
+    this.hasSeenBriefing = false,
   });
 
   AuthState copyWith({
@@ -21,22 +24,26 @@ class AuthState {
     Map<String, dynamic>? user,
     String? errorMessage,
     bool clearError = false,
+    bool? hasSeenBriefing,
   }) {
     return AuthState(
       status: status ?? this.status,
       user: user ?? this.user,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      hasSeenBriefing: hasSeenBriefing ?? this.hasSeenBriefing,
     );
   }
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
+  final Ref _ref;
   final AuthService _authService = AuthService();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   static const _onboardingKey = 'has_completed_onboarding';
+  static const _briefingKey = 'has_seen_daily_briefing';
 
-  AuthNotifier() : super(const AuthState()) {
+  AuthNotifier(this._ref) : super(const AuthState()) {
     _init();
   }
 
@@ -66,11 +73,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final user = await _authService.getMe();
       final hasOnboarded = await _storage.read(key: _onboardingKey);
+      final hasSeenBriefing = await _storage.read(key: _briefingKey) == 'true';
+      final storedInterests = user['interests'];
+      final hasSavedInterests =
+          storedInterests is List && storedInterests.isNotEmpty;
+      final onboardingComplete =
+          hasSavedInterests || hasOnboarded == 'true';
 
-      if (hasOnboarded == 'true') {
-        state = AuthState(status: AuthStatus.authenticated, user: user);
+      if (onboardingComplete) {
+        if (hasSavedInterests && hasOnboarded != 'true') {
+          await _storage.write(key: _onboardingKey, value: 'true');
+        }
+        state = AuthState(status: AuthStatus.authenticated, user: user, hasSeenBriefing: hasSeenBriefing);
       } else {
-        state = AuthState(status: AuthStatus.onboardingRequired, user: user);
+        state = AuthState(status: AuthStatus.onboardingRequired, user: user, hasSeenBriefing: hasSeenBriefing);
       }
     } catch (e) {
       print('Check Auth Status Failed: $e');
@@ -117,12 +133,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   // ── Google Sign In ─────────────────────────────────────────────────
 
-  Future<void> loginWithGoogle() async {
+  Future<void> loginWithGoogle({bool forceAccountPicker = false}) async {
     print('Starting Google Sign In Flow...');
     state = state.copyWith(status: AuthStatus.loading, clearError: true);
     try {
-      await _authService.loginWithGoogle();
-      // Auth state listener will handle the rest
+      final didStartSession = await _authService.loginWithGoogle(
+        forceAccountPicker: forceAccountPicker,
+      );
+      if (!didStartSession) {
+        state = const AuthState(status: AuthStatus.unauthenticated);
+      }
+      // Successful OAuth handoff is completed by the auth state listener.
     } catch (e) {
       state = AuthState(
         status: AuthStatus.unauthenticated,
@@ -138,15 +159,52 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(status: AuthStatus.authenticated);
   }
 
+  // ── Daily Briefing Tracking ────────────────────────────────────────
+
+  Future<void> markBriefingAsSeen() async {
+    await _storage.write(key: _briefingKey, value: 'true');
+  }
+
+  Future<bool> hasSeenBriefing() async {
+    final seen = await _storage.read(key: _briefingKey);
+    return seen == 'true';
+  }
+
   // ── Logout ─────────────────────────────────────────────────────────
 
   Future<void> logout() async {
-    await _authService.logout();
-    await _storage.delete(key: _onboardingKey);
+    // Update auth state first so navigation reacts immediately even if cleanup fails.
     state = const AuthState(status: AuthStatus.unauthenticated);
+
+    try {
+      await _ref.read(bookmarkSyncProvider.notifier).clear();
+    } catch (_) {}
+
+    try {
+      await _authService.logout();
+    } catch (_) {}
+
+    try {
+      await _storage.delete(key: _briefingKey);
+    } catch (_) {}
+  }
+
+  // ── Profile Updates ────────────────────────────────────────────────
+
+  Future<void> updateProfile({String? fullName, String? avatarUrl}) async {
+    try {
+      await _authService.updateProfile(fullName: fullName, avatarUrl: avatarUrl);
+      
+      // Refresh user data from backend to ensure local state is in sync
+      final updatedUser = await _authService.getMe();
+      state = state.copyWith(user: updatedUser);
+    } catch (e) {
+      state = state.copyWith(errorMessage: e.toString());
+      rethrow;
+    }
   }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
+  return AuthNotifier(ref);
 });

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../models/article.dart';
+import '../screens/article_web_view_screen.dart';
 import '../providers/bookmark_sync_provider.dart';
 import '../providers/bookmarks_state_provider.dart';
 
@@ -42,6 +44,35 @@ class _NewsArticlePageState extends ConsumerState<NewsArticlePage> {
       );
     } catch (_) {
       // Revert not strictly needed here as we watch a global provider that will update
+    }
+  }
+
+  void _navigateToWebView() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ArticleWebViewScreen(
+          url: widget.article.url,
+          title: widget.article.source,
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '';
+    try {
+      final date = DateTime.parse(dateStr).toLocal();
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inMinutes < 1) return 'now';
+      if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+      if (difference.inHours < 24) return '${difference.inHours}h ago';
+      if (difference.inDays < 7) return '${difference.inDays}d ago';
+      return DateFormat('MMM dd').format(date);
+    } catch (_) {
+      return '';
     }
   }
 
@@ -93,83 +124,106 @@ class _NewsArticlePageState extends ConsumerState<NewsArticlePage> {
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.article.headline,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: colorScheme.onSurface,
-                          height: 1.25,
-                          letterSpacing: -0.2,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.article.headline,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: colorScheme.onSurface,
+                            height: 1.25,
+                            letterSpacing: -0.2,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        widget.article.summary ?? widget.article.summarizedContent ?? '',
-                        maxLines: 6,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: colorScheme.onSurface.withOpacity(0.8),
-                          height: 1.5,
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: _navigateToWebView,
+                          child: Text(
+                            widget.article.summary ?? widget.article.summarizedContent ?? '',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: colorScheme.onSurface.withOpacity(0.8),
+                              height: 1.5,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: colorScheme.onSurface.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
                                 color: colorScheme.onSurface.withOpacity(0.05),
-                              ),
-                            ),
-                            child: Text(
-                              widget.article.source,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurface.withOpacity(0.6),
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          // BOOKMARK BUTTON
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: _toggleBookmark,
-                              borderRadius: BorderRadius.circular(24),
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: isBookmarked
-                                      ? const Color(0xFF4D7CFF).withOpacity(0.15)
-                                      : Theme.of(context).brightness == Brightness.dark
-                                          ? Colors.white.withOpacity(0.1)
-                                          : Colors.black.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: colorScheme.onSurface.withOpacity(0.05),
                                 ),
-                                child: Icon(
-                                  isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                                  size: 20,
-                                  color: isBookmarked
-                                      ? const Color(0xFF4D7CFF)
-                                      : Theme.of(context).brightness == Brightness.dark
-                                          ? Colors.white
-                                          : Colors.black,
+                              ),
+                              child: Text(
+                                widget.article.source.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: colorScheme.onSurface.withOpacity(0.6),
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            if (widget.article.publishedAt != null) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '•',
+                                style: TextStyle(
+                                  color: colorScheme.onSurface.withOpacity(0.3),
+                                  fontSize: 10,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _formatDate(widget.article.publishedAt),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.onSurface.withOpacity(0.4),
+                                ),
+                              ),
+                            ],
+                            const Spacer(),
+                            // BOOKMARK BUTTON
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _toggleBookmark,
+                                borderRadius: BorderRadius.circular(24),
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: isBookmarked
+                                        ? const Color(0xFF4D7CFF).withOpacity(0.15)
+                                        : Theme.of(context).brightness == Brightness.dark
+                                            ? Colors.white.withOpacity(0.1)
+                                            : Colors.black.withOpacity(0.05),
+                                  ),
+                                  child: Icon(
+                                    isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                                    size: 20,
+                                    color: isBookmarked
+                                        ? const Color(0xFF4D7CFF)
+                                        : Theme.of(context).brightness == Brightness.dark
+                                            ? Colors.white
+                                            : Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -5,11 +5,13 @@ import '../widgets/news_article_page.dart';
 class NewsArticleDetailScreen extends StatefulWidget {
   final List<Article> articles;
   final int initialIndex;
+  final bool isFromBookmarks;
 
   const NewsArticleDetailScreen({
     super.key,
     required this.articles,
     this.initialIndex = 0,
+    this.isFromBookmarks = false,
   });
 
   @override
@@ -47,27 +49,40 @@ class _NewsArticleDetailScreenState extends State<NewsArticleDetailScreen> {
               return NewsArticlePage(article: widget.articles[index]);
             },
           ),
-          // Back Button UI
+          // Top Header UI (Back Button + Optional Centered Bookmarks Label)
           Positioned(
-            top: MediaQuery.of(context).padding.top + 10,
-            left: 16,
-            child: SafeArea(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => Navigator.pop(context),
-                  borderRadius: BorderRadius.circular(30),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.3),
-                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 0,
+            right: 0,
+            child: SizedBox(
+              height: 56,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (widget.isFromBookmarks)
+                    const Text(
+                      'BOOKMARKS',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 5.0,
+                      ),
                     ),
-                    child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 24),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded, 
+                          color: Colors.black, 
+                          size: 22
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),

@@ -59,6 +59,18 @@ class NewsService {
     }
   }
 
+  /// Search for live RSS news by query.
+  Future<Map<String, dynamic>> searchNews(String query) async {
+    try {
+      final response = await _api.dio.get('/news/search',
+        queryParameters: {'q': query},
+      );
+      return response.data;
+    } on DioException catch (e) {
+      throw _extractError(e);
+    }
+  }
+
   // ── Category News (DB) ─────────────────────────────────────────────
 
   /// Fetch processed news articles from DB by category.

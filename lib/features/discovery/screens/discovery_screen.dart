@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,17 +7,37 @@ import '../../../core/providers/navigation_provider.dart';
 import '../../news/screens/daily_briefing_screen.dart';
 import '../../news/providers/daily_briefing_provider.dart';
 
-class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key});
+class DiscoveryScreen extends ConsumerWidget {
+  const DiscoveryScreen({super.key});
 
   final List<Map<String, dynamic>> _topics = const [
-    {'name': 'For You', 'color': Color(0xFFFF4D4D), 'icon': Icons.local_fire_department},
+    {
+      'name': 'For You',
+      'color': Color(0xFFFF4D4D),
+      'icon': Icons.local_fire_department
+    },
     {'name': 'International', 'color': Color(0xFF4D7CFF), 'icon': Icons.public},
-    {'name': 'Finance', 'color': Color(0xFF4DBC8C), 'icon': Icons.account_balance_wallet},
-    {'name': 'Healthcare', 'color': Color(0xFF8C4DFF), 'icon': Icons.medical_services},
-    {'name': 'Good News', 'color': Color(0xFFFFB34D), 'icon': Icons.sentiment_satisfied_alt},
+    {
+      'name': 'Finance',
+      'color': Color(0xFF4DBC8C),
+      'icon': Icons.account_balance_wallet
+    },
+    {
+      'name': 'Healthcare',
+      'color': Color(0xFF8C4DFF),
+      'icon': Icons.medical_services
+    },
+    {
+      'name': 'Good News',
+      'color': Color(0xFFFFB34D),
+      'icon': Icons.sentiment_satisfied_alt
+    },
     {'name': 'Technology', 'color': Color(0xFF4D4D4D), 'icon': Icons.science},
-    {'name': 'Sports', 'color': Color(0xFF4DB3FF), 'icon': Icons.sports_basketball},
+    {
+      'name': 'Sports',
+      'color': Color(0xFF4DB3FF),
+      'icon': Icons.sports_basketball
+    },
     {'name': 'Entertainment', 'color': Color(0xFFFF4DB3), 'icon': Icons.movie},
     {'name': 'Science', 'color': Color(0xFFB3FF4D), 'icon': Icons.biotech},
     {'name': 'Business', 'color': Color(0xFFFF8C4D), 'icon': Icons.business},
@@ -25,6 +47,102 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search news, topics...',
+                    hintStyle: TextStyle(color: colorScheme.secondary),
+                    prefixIcon:
+                        Icon(Icons.search, color: colorScheme.secondary),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: Theme.of(context).appBarTheme.systemOverlayStyle ??
+            (Theme.of(context).brightness == Brightness.dark
+                ? SystemUiOverlayStyle.light
+                : SystemUiOverlayStyle.dark),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8.0, vertical: 20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Discover',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const DailyBriefingHero(),
+                const SizedBox(height: 24),
+                ..._buildTopicRows(ref),
+                const SizedBox(height: 32),
+                Text(
+                  'Trending Topics',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildTrendingChip(context, '#Technology'),
+                    _buildTrendingChip(context, '#GlobalEconomy'),
+                    _buildTrendingChip(context, '#AIRevolution'),
+                    _buildTrendingChip(context, '#SpaceX'),
+                    _buildTrendingChip(context, '#ClimateAction'),
+                    _buildTrendingChip(context, '#HealthyLiving'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildTopicRows(WidgetRef ref) {
     // Generate the rows based on the 2-3-2-3 pattern
     List<Widget> rows = [];
     int index = 0;
@@ -50,7 +168,9 @@ class HomeScreen extends ConsumerWidget {
                   child: GestureDetector(
                     onTap: () {
                       // Switch to News Feed tab (index 0) and set the topic
-                      ref.read(navigationProvider.notifier).setTopic(topic['name'] as String);
+                      ref
+                          .read(navigationProvider.notifier)
+                          .setTopic(topic['name'] as String);
                     },
                     child: TopicCard(topic: topic, height: cardHeight),
                   ),
@@ -64,48 +184,33 @@ class HomeScreen extends ConsumerWidget {
       isTwo = !isTwo;
     }
 
-    final colorScheme = Theme.of(context).colorScheme;
+    return rows;
+  }
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: Theme.of(context).appBarTheme.systemOverlayStyle ?? 
-               (Theme.of(context).brightness == Brightness.dark 
-                 ? SystemUiOverlayStyle.light 
-                 : SystemUiOverlayStyle.dark),
-        child: SafeArea(
-          child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 20.0),
-          child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Discover',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            const DailyBriefingHero(),
-            const SizedBox(height: 24),
-            ...rows,
-          ],
+  Widget _buildTrendingChip(BuildContext context, String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Chip(
+      label: Text(label),
+      backgroundColor: isDark
+          ? Colors.white.withOpacity(0.05)
+          : Colors.black.withOpacity(0.03),
+      labelStyle: TextStyle(
+        color: isDark ? Colors.white : Colors.black,
+        fontWeight: FontWeight.w600,
+        fontSize: 13,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.1),
         ),
       ),
-    ),
-  ),
-);
-}
+    );
+  }
 }
 
 class TopicCard extends StatelessWidget {
@@ -176,6 +281,7 @@ class TopicCard extends StatelessWidget {
     );
   }
 }
+
 class DailyBriefingHero extends ConsumerWidget {
   const DailyBriefingHero({super.key});
 
@@ -199,9 +305,11 @@ class DailyBriefingHero extends ConsumerWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           image: DecorationImage(
-            image: const NetworkImage('https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000'),
+            image: const NetworkImage(
+                'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000'),
             fit: BoxFit.cover,
-            colorFilter: const ColorFilter.mode(Colors.black45, BlendMode.darken),
+            colorFilter:
+                const ColorFilter.mode(Colors.black45, BlendMode.darken),
             onError: (exception, stackTrace) => print('Hero image load failed'),
           ),
           boxShadow: [

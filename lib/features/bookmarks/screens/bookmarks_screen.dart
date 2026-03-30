@@ -5,7 +5,9 @@ import '../../news/screens/news_detail_screen.dart';
 import '../../news/providers/bookmark_sync_provider.dart';
 
 class BookmarksScreen extends ConsumerWidget {
-  const BookmarksScreen({super.key});
+  final bool isTab;
+
+  const BookmarksScreen({super.key, this.isTab = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -18,12 +20,15 @@ class BookmarksScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: !isTab,
+        leading: isTab
+            ? null
+            : IconButton(
+                icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
+                onPressed: () => Navigator.pop(context),
+              ),
         title: Text(
-          'Bookmarks',
+          'Saved',
           style: TextStyle(
             color: colorScheme.onSurface,
             fontWeight: FontWeight.bold,
@@ -31,6 +36,7 @@ class BookmarksScreen extends ConsumerWidget {
         ),
       ),
       body: bookmarksAsync.when(
+        skipLoadingOnRefresh: true,
         data: (articles) {
           if (articles.isEmpty) {
             return _buildEmptyState(context, colorScheme);
@@ -38,7 +44,7 @@ class BookmarksScreen extends ConsumerWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(20),
             itemCount: articles.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 20),
+            separatorBuilder: (context, index) => const SizedBox(width: 20),
             itemBuilder: (context, index) {
               final article = articles[index];
               return GestureDetector(
@@ -49,6 +55,7 @@ class BookmarksScreen extends ConsumerWidget {
                       builder: (context) => NewsArticleDetailScreen(
                         articles: articles,
                         initialIndex: index,
+                        isFromBookmarks: true,
                       ),
                     ),
                   );
@@ -58,7 +65,8 @@ class BookmarksScreen extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: colorScheme.onSurface.withOpacity(0.05)),
+                    border: Border.all(
+                        color: colorScheme.onSurface.withOpacity(0.05)),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.03),
@@ -77,17 +85,22 @@ class BookmarksScreen extends ConsumerWidget {
                                 width: 100,
                                 height: 100,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
                                   width: 100,
                                   height: 100,
-                                  color: isDark ? Colors.grey[800] : Colors.grey[200],
+                                  color: isDark
+                                      ? Colors.grey[800]
+                                      : Colors.grey[200],
                                   child: const Icon(Icons.broken_image),
                                 ),
                               )
                             : Container(
                                 width: 100,
                                 height: 100,
-                                color: isDark ? Colors.grey[800] : Colors.grey[200],
+                                color: isDark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[200],
                                 child: const Icon(Icons.article_outlined),
                               ),
                       ),
@@ -97,9 +110,13 @@ class BookmarksScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: (isDark ? Colors.blue : const Color(0xFF4D7CFF)).withOpacity(0.1),
+                                color: (isDark
+                                        ? Colors.blue
+                                        : const Color(0xFF4D7CFF))
+                                    .withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -107,7 +124,9 @@ class BookmarksScreen extends ConsumerWidget {
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.blue[300] : const Color(0xFF4D7CFF),
+                                  color: isDark
+                                      ? Colors.blue[300]
+                                      : const Color(0xFF4D7CFF),
                                 ),
                               ),
                             ),
@@ -134,13 +153,16 @@ class BookmarksScreen extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.bookmark_remove_rounded, color: Colors.red),
+                        icon: const Icon(Icons.bookmark_remove_rounded,
+                            color: Colors.red),
                         onPressed: () async {
-                          await ref.read(bookmarkSyncProvider.notifier).toggleBookmark(
-                            article, 
-                            true, // wasBookmarked = true
-                          );
-                          
+                          await ref
+                              .read(bookmarkSyncProvider.notifier)
+                              .toggleBookmark(
+                                article,
+                                true, // wasBookmarked = true
+                              );
+
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).clearSnackBars();
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -161,7 +183,7 @@ class BookmarksScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error loading bookmarks')),
+        error: (err, stack) => const Center(child: Text('Error loading bookmarks')),
       ),
     );
   }
@@ -171,7 +193,8 @@ class BookmarksScreen extends ConsumerWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.bookmark_border_rounded, size: 64, color: colorScheme.secondary.withOpacity(0.3)),
+          Icon(Icons.bookmark_border_rounded,
+              size: 64, color: colorScheme.secondary.withOpacity(0.3)),
           const SizedBox(height: 16),
           Text(
             'No bookmarks yet',

@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../models/article.dart';
 import '../../../services/news_service.dart';
+import 'raw_bookmarks_provider.dart';
 
 enum OutboxAction { add, remove }
 
@@ -48,35 +49,54 @@ class BookmarkSyncState {
   final bool isSyncing;
   final Map<String, Article> pendingAddArticles;
   final Set<String> pendingRemoves;
+  final Map<String, DateTime> recentRemoveTombstones;
 
   BookmarkSyncState({
     this.isSyncing = false,
     this.pendingAddArticles = const {},
     this.pendingRemoves = const {},
+    this.recentRemoveTombstones = const {},
   });
 
-  Set<String> get allPendingIds => {...pendingAddArticles.keys, ...pendingRemoves};
+  Set<String> get allPendingIds => {
+        ...pendingAddArticles.keys,
+        ...pendingRemoves,
+        ...activeRemoveTombstones,
+      };
+
+  Set<String> get activeRemoveTombstones {
+    final now = DateTime.now();
+    return recentRemoveTombstones.entries
+        .where((entry) => entry.value.isAfter(now))
+        .map((entry) => entry.key)
+        .toSet();
+  }
 
   BookmarkSyncState copyWith({
     bool? isSyncing,
     Map<String, Article>? pendingAddArticles,
     Set<String>? pendingRemoves,
+    Map<String, DateTime>? recentRemoveTombstones,
   }) {
     return BookmarkSyncState(
       isSyncing: isSyncing ?? this.isSyncing,
       pendingAddArticles: pendingAddArticles ?? this.pendingAddArticles,
       pendingRemoves: pendingRemoves ?? this.pendingRemoves,
+      recentRemoveTombstones:
+          recentRemoveTombstones ?? this.recentRemoveTombstones,
     );
   }
 }
 
 class BookmarkSyncNotifier extends StateNotifier<BookmarkSyncState> {
+  final Ref ref;
   final NewsService _newsService = NewsService();
   final Box _box = Hive.box('bookmark_outbox');
   final _uuid = const Uuid();
+  static const Duration _removeTombstoneTtl = Duration(seconds: 5);
   StreamSubscription? _connectivitySub;
 
-  BookmarkSyncNotifier() : super(BookmarkSyncState()) {
+  BookmarkSyncNotifier(this.ref) : super(BookmarkSyncState()) {
     _loadInitialState();
     _setupConnectivityListener();
   }
@@ -99,6 +119,13 @@ class BookmarkSyncNotifier extends StateNotifier<BookmarkSyncState> {
   Future<void> toggleBookmark(Article article, bool isCurrentlyBookmarked) async {
     final articleId = article.id ?? article.externalId ?? article.url;
     final action = isCurrentlyBookmarked ? OutboxAction.remove : OutboxAction.add;
+
+    _pruneExpiredTombstones();
+    if (action == OutboxAction.remove) {
+      _upsertRemoveTombstone(articleId);
+    } else {
+      _clearRemoveTombstone(articleId);
+    }
     
     // 1. Reconcile: If there's an opposite action for this article already in the box, remove it instead of adding a new one.
     final existingIndex = _box.values.toList().indexWhere(
@@ -159,6 +186,7 @@ class BookmarkSyncNotifier extends StateNotifier<BookmarkSyncState> {
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity.contains(ConnectivityResult.none)) return;
 
+    final hadEntriesAtStart = _box.isNotEmpty;
     state = state.copyWith(isSyncing: true);
 
     try {
@@ -175,8 +203,10 @@ class BookmarkSyncNotifier extends StateNotifier<BookmarkSyncState> {
               'client_id': entry.id, 
               'created_at': entry.createdAt.toIso8601String(),
             });
+            _clearRemoveTombstone(entry.articleId);
           } else {
             await _newsService.unbookmark(entry.articleId);
+            _upsertRemoveTombstone(entry.articleId);
           }
           
           print('Successfully synced ${entry.id}');
@@ -192,11 +222,45 @@ class BookmarkSyncNotifier extends StateNotifier<BookmarkSyncState> {
     } finally {
       _updatePendingIds();
       state = state.copyWith(isSyncing: false);
+      
+      // If sync ran against any queued bookmark operations, refresh the server snapshot.
+      if (hadEntriesAtStart) {
+        ref.invalidate(rawBookmarksProvider);
+      }
     }
   }
 
   bool isPending(String articleId) {
+    _pruneExpiredTombstones();
     return state.allPendingIds.contains(articleId);
+  }
+
+  void _upsertRemoveTombstone(String articleId) {
+    final next = Map<String, DateTime>.from(state.recentRemoveTombstones);
+    next[articleId] = DateTime.now().add(_removeTombstoneTtl);
+    state = state.copyWith(recentRemoveTombstones: next);
+  }
+
+  void _clearRemoveTombstone(String articleId) {
+    if (!state.recentRemoveTombstones.containsKey(articleId)) return;
+    final next = Map<String, DateTime>.from(state.recentRemoveTombstones);
+    next.remove(articleId);
+    state = state.copyWith(recentRemoveTombstones: next);
+  }
+
+  void _pruneExpiredTombstones() {
+    final now = DateTime.now();
+    final next = Map<String, DateTime>.from(state.recentRemoveTombstones)
+      ..removeWhere((_, expiresAt) => !expiresAt.isAfter(now));
+    if (next.length != state.recentRemoveTombstones.length) {
+      state = state.copyWith(recentRemoveTombstones: next);
+    }
+  }
+
+  /// Completely wipe the local outbox and reset state (used on logout)
+  Future<void> clear() async {
+    await _box.clear();
+    state = BookmarkSyncState();
   }
 
   @override
@@ -208,5 +272,5 @@ class BookmarkSyncNotifier extends StateNotifier<BookmarkSyncState> {
 
 final bookmarkSyncProvider =
     StateNotifierProvider<BookmarkSyncNotifier, BookmarkSyncState>((ref) {
-  return BookmarkSyncNotifier();
+  return BookmarkSyncNotifier(ref);
 });

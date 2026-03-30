@@ -71,6 +71,10 @@
 		<string>audio</string>
 		<string>fetch</string>
 		<string>remote-notification</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
 	</array>
 </dict>
 </plist>
