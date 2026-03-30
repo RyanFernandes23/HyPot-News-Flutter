@@ -146,10 +146,24 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
 
   void nextArticle() {
     if (state.currentArticleIndex < state.sessionArticles.length - 1) {
-      final newIndex = state.currentArticleIndex + 1;
+      goToArticle(state.currentArticleIndex + 1);
+    } else if (!state.hasMore) {
+      // All articles consumed — mark as finished
+      stopBriefing();
+    }
+  }
+
+  void previousArticle() {
+    if (state.currentArticleIndex > 0) {
+      goToArticle(state.currentArticleIndex - 1);
+    }
+  }
+
+  void goToArticle(int newIndex) {
+    if (newIndex >= 0 && newIndex < state.sessionArticles.length) {
       state = state.copyWith(currentArticleIndex: newIndex);
 
-      // Trigger audio playback for the next article
+      // Trigger audio playback for the new article
       _ref.read(audioProvider.notifier).playArticle(state.sessionArticles[newIndex]);
 
       // Mark as read
@@ -161,19 +175,6 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
           newIndex >= state.sessionArticles.length - 2) {
         _fetchMoreArticles();
       }
-    } else if (!state.hasMore) {
-      // All articles consumed — mark as finished
-      stopBriefing();
-    }
-  }
-
-  void previousArticle() {
-    if (state.currentArticleIndex > 0) {
-      final newIndex = state.currentArticleIndex - 1;
-      state = state.copyWith(currentArticleIndex: newIndex);
-      
-      // Trigger audio playback for the previous article
-      _ref.read(audioProvider.notifier).playArticle(state.sessionArticles[newIndex]);
     }
   }
 

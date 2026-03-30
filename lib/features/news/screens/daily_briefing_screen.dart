@@ -41,6 +41,21 @@ class _DailyBriefingScreenState extends ConsumerState<DailyBriefingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      dailyBriefingProvider.select((s) => s.currentArticleIndex),
+      (previous, next) {
+        if (previous != null && next != previous) {
+          if (_pageController.hasClients && _pageController.page?.round() != next) {
+            _pageController.animateToPage(
+              next,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOut,
+            );
+          }
+        }
+      },
+    );
+
     final briefingState = ref.watch(dailyBriefingProvider);
     final themeMode = ref.watch(themeProvider);
     final isDark = themeMode == ThemeMode.dark;
@@ -285,8 +300,6 @@ class _DailyBriefingScreenState extends ConsumerState<DailyBriefingScreen> {
     }
 
     final totalArticles = briefingState.sessionArticles.length;
-    final currentArticle =
-        briefingState.sessionArticles[briefingState.currentArticleIndex];
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -380,10 +393,10 @@ class _DailyBriefingScreenState extends ConsumerState<DailyBriefingScreen> {
               controller: _pageController,
               itemCount: totalArticles,
               onPageChanged: (index) {
-                if (index > briefingState.currentArticleIndex) {
-                  ref.read(dailyBriefingProvider.notifier).nextArticle();
-                } else if (index < briefingState.currentArticleIndex) {
-                  ref.read(dailyBriefingProvider.notifier).previousArticle();
+                final currentIndex =
+                    ref.read(dailyBriefingProvider).currentArticleIndex;
+                if (index != currentIndex) {
+                  ref.read(dailyBriefingProvider.notifier).goToArticle(index);
                 }
               },
               itemBuilder: (context, index) {
