@@ -53,10 +53,13 @@ class MainNavigationScreen extends ConsumerWidget {
               currentIndex: selectedIndex,
               onTap: (index) {
                 if (index == 2) {
-                  // Start briefing from backend (Previously index 3)
-                  ref
-                      .read(dailyBriefingProvider.notifier)
-                      .startBriefingFromBackend();
+                  // Start briefing from backend if not active
+                  final state = ref.read(dailyBriefingProvider);
+                  if (!state.isActive || state.isFinished) {
+                    ref
+                        .read(dailyBriefingProvider.notifier)
+                        .startBriefingFromBackend();
+                  }
                   Navigator.push(
                     context,
                     MaterialPageRoute(

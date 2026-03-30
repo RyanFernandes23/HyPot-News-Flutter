@@ -119,9 +119,9 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
         isLoadingMore: false,
       );
 
-      // Start playing the first article automatically
+      // Start playing the first article automatically by pushing the whole queue
       if (playableArticles.isNotEmpty) {
-        _ref.read(audioProvider.notifier).playArticle(playableArticles[0]);
+        _ref.read(audioProvider.notifier).setBriefingPlaylist(playableArticles, playableArticles[0]);
       }
     } catch (e) {
       state = DailyBriefingState(isActive: false);
@@ -159,12 +159,14 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
     }
   }
 
-  void goToArticle(int newIndex) {
+  void goToArticle(int newIndex, {bool updateAudio = true}) {
     if (newIndex >= 0 && newIndex < state.sessionArticles.length) {
       state = state.copyWith(currentArticleIndex: newIndex);
 
-      // Trigger audio playback for the new article
-      _ref.read(audioProvider.notifier).playArticle(state.sessionArticles[newIndex]);
+      // Trigger audio playback for the new article if requested
+      if (updateAudio) {
+        _ref.read(audioProvider.notifier).seekToArticle(state.sessionArticles[newIndex]);
+      }
 
       // Mark as read
       _markCurrentAsRead(newIndex);
@@ -205,6 +207,9 @@ class DailyBriefingNotifier extends StateNotifier<DailyBriefingState> {
         hasMore: newArticles.length >= _chunkSize,
         isLoadingMore: false,
       );
+
+      // Append the new batch to the underlying OS audio queue
+      _ref.read(audioProvider.notifier).appendBriefingArticles(newArticles);
     } catch (e) {
       state = state.copyWith(isLoadingMore: false);
     }

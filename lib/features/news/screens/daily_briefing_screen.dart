@@ -368,9 +368,9 @@ class _DailyBriefingScreenState extends ConsumerState<DailyBriefingScreen> {
                       IconButton(
                         icon: Icon(Icons.close_rounded, color: textColor),
                         onPressed: () {
-                          ref
-                              .read(dailyBriefingProvider.notifier)
-                              .stopBriefing();
+                          // Allow the briefing to continue playing in the background
+                          // ref.read(dailyBriefingProvider.notifier).stopBriefing();
+                          
                           ref.read(authProvider.notifier).markBriefingAsSeen();
                           ref.read(navigationProvider.notifier).setIndex(0);
                           Navigator.pushReplacement(

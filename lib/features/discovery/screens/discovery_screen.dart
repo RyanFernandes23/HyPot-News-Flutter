@@ -291,8 +291,11 @@ class DailyBriefingHero extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () {
-        // Start briefing from backend
-        ref.read(dailyBriefingProvider.notifier).startBriefingFromBackend();
+        final state = ref.read(dailyBriefingProvider);
+        if (!state.isActive || state.isFinished) {
+          // Restart only if there isn't an active briefing session running
+          ref.read(dailyBriefingProvider.notifier).startBriefingFromBackend();
+        }
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const DailyBriefingScreen()),
