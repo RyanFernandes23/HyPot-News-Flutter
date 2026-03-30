@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../features/news/models/article.dart';
 import '../../features/news/providers/daily_briefing_provider.dart';
 import 'dart:async';
@@ -12,6 +13,7 @@ class AudioState {
   final Duration position;
   final Duration duration;
   final bool isMiniPlayerVisible;
+  final double playbackSpeed;
 
   AudioState({
     this.isPlaying = false,
@@ -19,6 +21,7 @@ class AudioState {
     this.position = Duration.zero,
     this.duration = Duration.zero,
     this.isMiniPlayerVisible = false,
+    this.playbackSpeed = 1.0,
   });
 
   AudioState copyWith({
@@ -27,6 +30,7 @@ class AudioState {
     Duration? position,
     Duration? duration,
     bool? isMiniPlayerVisible,
+    double? playbackSpeed,
   }) {
     return AudioState(
       isPlaying: isPlaying ?? this.isPlaying,
@@ -34,6 +38,7 @@ class AudioState {
       position: position ?? this.position,
       duration: duration ?? this.duration,
       isMiniPlayerVisible: isMiniPlayerVisible ?? this.isMiniPlayerVisible,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     );
   }
 }
@@ -50,6 +55,12 @@ class AudioNotifier extends StateNotifier<AudioState> {
   }
 
   void _init() {
+    // Load persisted speed
+    final box = Hive.box('settings');
+    final savedSpeed = box.get('playback_speed', defaultValue: 1.0) as double;
+    state = state.copyWith(playbackSpeed: savedSpeed);
+    _player.setSpeed(savedSpeed);
+
     _player.playerStateStream.listen((state) {
       this.state = this.state.copyWith(isPlaying: state.playing);
     });
@@ -301,6 +312,13 @@ class AudioNotifier extends StateNotifier<AudioState> {
 
   void setMiniPlayerVisible(bool visible) {
     state = state.copyWith(isMiniPlayerVisible: visible);
+  }
+
+  Future<void> setPlaybackSpeed(double speed) async {
+    await _player.setSpeed(speed);
+    state = state.copyWith(playbackSpeed: speed);
+    final box = Hive.box('settings');
+    await box.put('playback_speed', speed);
   }
 
   @override

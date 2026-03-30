@@ -103,34 +103,86 @@ class NewsAudioPlayer extends ConsumerWidget {
           const SizedBox(height: 8),
 
           // Play/pause controls
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                iconSize: isMini ? 32 : 48,
-                icon: Icon(
-                  audioState.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  color: isDark ? Colors.white : Colors.black,
+          SizedBox(
+            width: double.infinity,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  iconSize: isMini ? 32 : 48,
+                  icon: Icon(
+                    audioState.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                  onPressed: () {
+                    final article = audioState.currentArticle;
+                    if (article != null && article.audioStatus != 'ready') {
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Audio is still generating for this article!'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+                    ref.read(audioProvider.notifier).togglePlay();
+                  },
                 ),
-                onPressed: () {
-                  final article = audioState.currentArticle;
-                  if (article != null && article.audioStatus != 'ready') {
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Audio is still generating for this article!'),
-                        behavior: SnackBarBehavior.floating,
-                        duration: Duration(seconds: 2),
+                Positioned(
+                  right: isMini ? 0 : 16,
+                  child: PopupMenuButton<double>(
+                    initialValue: audioState.playbackSpeed,
+                    onSelected: (speed) {
+                      ref.read(audioProvider.notifier).setPlaybackSpeed(speed);
+                    },
+                    color: isDark ? Colors.grey[850] : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    itemBuilder: (context) => [
+                      0.25,
+                      0.5,
+                      0.8,
+                      1.0,
+                      1.2,
+                      1.5,
+                      2.0,
+                    ].map((speed) {
+                      return PopupMenuItem<double>(
+                        value: speed,
+                        child: Text(
+                          '${speed}x',
+                          style: TextStyle(
+                            fontWeight: audioState.playbackSpeed == speed
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: isMini ? 8 : 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    );
-                    return;
-                  }
-                  ref.read(audioProvider.notifier).togglePlay();
-                },
-              ),
-            ],
+                      child: Text(
+                        '${audioState.playbackSpeed}x',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMini ? 10 : 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
