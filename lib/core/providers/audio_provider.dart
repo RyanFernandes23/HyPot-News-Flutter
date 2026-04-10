@@ -9,6 +9,7 @@ import 'dart:async';
 
 class AudioState {
   final bool isPlaying;
+  final bool isLoading;
   final Article? currentArticle;
   final Duration position;
   final Duration duration;
@@ -17,6 +18,7 @@ class AudioState {
 
   AudioState({
     this.isPlaying = false,
+    this.isLoading = false,
     this.currentArticle,
     this.position = Duration.zero,
     this.duration = Duration.zero,
@@ -26,6 +28,7 @@ class AudioState {
 
   AudioState copyWith({
     bool? isPlaying,
+    bool? isLoading,
     Article? currentArticle,
     Duration? position,
     Duration? duration,
@@ -34,6 +37,7 @@ class AudioState {
   }) {
     return AudioState(
       isPlaying: isPlaying ?? this.isPlaying,
+      isLoading: isLoading ?? this.isLoading,
       currentArticle: currentArticle ?? this.currentArticle,
       position: position ?? this.position,
       duration: duration ?? this.duration,
@@ -57,7 +61,17 @@ class AudioNotifier extends StateNotifier<AudioState> {
   void _init() {
     // Load persisted speed
     final box = Hive.box('settings');
-    final savedSpeed = box.get('playback_speed', defaultValue: 1.0) as double;
+    double savedSpeed = box.get('playback_speed', defaultValue: 1.0) as double;
+    
+    // Migrate deprecated speeds
+    if (savedSpeed == 0.8) {
+      savedSpeed = 0.9;
+      box.put('playback_speed', 0.9);
+    } else if (savedSpeed == 1.2) {
+      savedSpeed = 1.0;
+      box.put('playback_speed', 1.0);
+    }
+
     state = state.copyWith(playbackSpeed: savedSpeed);
     _player.setSpeed(savedSpeed);
 
@@ -88,6 +102,9 @@ class AudioNotifier extends StateNotifier<AudioState> {
     });
 
     _player.processingStateStream.listen((state) {
+      this.state = this.state.copyWith(
+        isLoading: state == ProcessingState.loading || state == ProcessingState.buffering,
+      );
       if (state == ProcessingState.completed) {
         _handleAudioCompletion();
       }

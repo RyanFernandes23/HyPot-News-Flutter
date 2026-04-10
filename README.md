@@ -15,3 +15,17 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+hetzner-----
+
+C:\Users\Hp>ssh -i %USERPROFILE%\.ssh\hetzner_key root@62.238.14.210
+
+ssh -i %USERPROFILE%\.ssh\hetzner_key devuser@62.238.14.210
+psw: devuser
+
+
+accessing docs: psw- devuser-docs
+
+-- viewing env in compose: docker compose exec api env
+
+-- view logs of service(api): docker compose logs -f api

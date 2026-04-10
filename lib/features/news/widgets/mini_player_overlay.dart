@@ -86,18 +86,30 @@ class MiniPlayerOverlay extends ConsumerWidget {
                           onPressed: () => ref.read(audioProvider.notifier).skipBackward(),
                         ),
                         const SizedBox(width: 8),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: Icon(
-                            audioState.isPlaying 
-                                ? Icons.pause_rounded 
-                                : Icons.play_arrow_rounded,
-                            color: colorScheme.primary,
-                            size: 28,
-                          ),
-                          onPressed: () => ref.read(audioProvider.notifier).togglePlay(),
-                        ),
+                        audioState.isLoading
+                            ? SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4.0),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                              )
+                            : IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                icon: Icon(
+                                  audioState.isPlaying 
+                                      ? Icons.pause_rounded 
+                                      : Icons.play_arrow_rounded,
+                                  color: colorScheme.primary,
+                                  size: 28,
+                                ),
+                                onPressed: () => ref.read(audioProvider.notifier).togglePlay(),
+                              ),
                         const SizedBox(width: 8),
                         IconButton(
                           padding: EdgeInsets.zero,

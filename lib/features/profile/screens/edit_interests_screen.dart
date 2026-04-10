@@ -18,14 +18,8 @@ class _EditInterestsScreenState extends ConsumerState<EditInterestsScreen> {
   final List<Map<String, dynamic>> _interests = [
     {'name': 'International', 'icon': Icons.public, 'color': const Color(0xFF4D7CFF)},
     {'name': 'Finance', 'icon': Icons.account_balance_wallet, 'color': const Color(0xFF34D399)},
-    {'name': 'Regional', 'icon': Icons.location_on, 'color': const Color(0xFFFB923C)},
-    {'name': 'Good News', 'icon': Icons.sentiment_satisfied_alt, 'color': const Color(0xFFF472B6)},
-    {'name': 'For You', 'icon': Icons.local_fire_department, 'color': const Color(0xFFF97316)},
+    {'name': 'Startups', 'icon': Icons.rocket_launch, 'color': const Color(0xFFF59E0B)},
     {'name': 'Technology', 'icon': Icons.science, 'color': const Color(0xFF8B5CF6)},
-    {'name': 'Sports', 'icon': Icons.sports_soccer, 'color': const Color(0xFF14B8A6)},
-    {'name': 'Entertainment', 'icon': Icons.movie_outlined, 'color': const Color(0xFFEC4899)},
-    {'name': 'Science', 'icon': Icons.biotech, 'color': const Color(0xFF06B6D4)},
-    {'name': 'Business', 'icon': Icons.business_center, 'color': const Color(0xFF64748B)},
   ];
 
   @override

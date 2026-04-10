@@ -23,26 +23,11 @@ class DiscoveryScreen extends ConsumerWidget {
       'icon': Icons.account_balance_wallet
     },
     {
-      'name': 'Healthcare',
-      'color': Color(0xFF8C4DFF),
-      'icon': Icons.medical_services
-    },
-    {
-      'name': 'Good News',
-      'color': Color(0xFFFFB34D),
-      'icon': Icons.sentiment_satisfied_alt
+      'name': 'Startups',
+      'color': Color(0xFFF59E0B),
+      'icon': Icons.rocket_launch
     },
     {'name': 'Technology', 'color': Color(0xFF4D4D4D), 'icon': Icons.science},
-    {
-      'name': 'Sports',
-      'color': Color(0xFF4DB3FF),
-      'icon': Icons.sports_basketball
-    },
-    {'name': 'Entertainment', 'color': Color(0xFFFF4DB3), 'icon': Icons.movie},
-    {'name': 'Science', 'color': Color(0xFFB3FF4D), 'icon': Icons.biotech},
-    {'name': 'Business', 'color': Color(0xFFFF8C4D), 'icon': Icons.business},
-    {'name': 'Travel', 'color': Color(0xFF4DFFB3), 'icon': Icons.flight},
-    {'name': 'Lifestyle', 'color': Color(0xFFFF4D8C), 'icon': Icons.style},
   ];
 
   @override

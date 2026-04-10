@@ -108,30 +108,42 @@ class NewsAudioPlayer extends ConsumerWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                IconButton(
-                  iconSize: isMini ? 32 : 48,
-                  icon: Icon(
-                    audioState.isPlaying
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    color: isDark ? Colors.white : Colors.black,
-                  ),
-                  onPressed: () {
-                    final article = audioState.currentArticle;
-                    if (article != null && article.audioStatus != 'ready') {
-                      ScaffoldMessenger.of(context).clearSnackBars();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Audio is still generating for this article!'),
-                          behavior: SnackBarBehavior.floating,
-                          duration: Duration(seconds: 2),
+                audioState.isLoading
+                    ? SizedBox(
+                        width: isMini ? 32 : 48,
+                        height: isMini ? 32 : 48,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: isDark ? Colors.white : Colors.black,
+                          ),
                         ),
-                      );
-                      return;
-                    }
-                    ref.read(audioProvider.notifier).togglePlay();
-                  },
-                ),
+                      )
+                    : IconButton(
+                        iconSize: isMini ? 32 : 48,
+                        icon: Icon(
+                          audioState.isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                        onPressed: () {
+                          final article = audioState.currentArticle;
+                          if (article != null && article.audioStatus != 'ready') {
+                            ScaffoldMessenger.of(context).clearSnackBars();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Audio is still generating for this article!'),
+                                behavior: SnackBarBehavior.floating,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                            return;
+                          }
+                          ref.read(audioProvider.notifier).togglePlay();
+                        },
+                      ),
                 Positioned(
                   right: isMini ? 0 : 16,
                   child: PopupMenuButton<double>(
@@ -146,9 +158,8 @@ class NewsAudioPlayer extends ConsumerWidget {
                     itemBuilder: (context) => [
                       0.25,
                       0.5,
-                      0.8,
+                      0.9,
                       1.0,
-                      1.2,
                       1.5,
                       2.0,
                     ].map((speed) {

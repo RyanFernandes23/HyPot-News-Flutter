@@ -14,7 +14,7 @@ class ApiService {
   static const _refreshTokenKey = 'refresh_token';
 
   ApiService._internal() {
-    final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8000/api/v1';
+    final baseUrl = dotenv.env['API_BASE_URL'] ?? 'https://hypot-news-bc.duckdns.org/api/v1';
 
     dio = Dio(BaseOptions(
       baseUrl: baseUrl,
@@ -57,7 +57,7 @@ class ApiService {
     if (refreshToken == null) return false;
 
     try {
-      final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8000/api/v1';
+      final baseUrl = dotenv.env['API_BASE_URL'] ?? 'https://hypot-news-bc.duckdns.org/api/v1';
       // Use a clean Dio instance to avoid interceptor loops
       final freshDio = Dio(BaseOptions(baseUrl: baseUrl));
       final response = await freshDio.post('/auth/refresh', data: {

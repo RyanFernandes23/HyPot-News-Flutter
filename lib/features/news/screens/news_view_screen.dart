@@ -44,16 +44,8 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
     'For You',
     'International',
     'Finance',
-    'Regional',
-    'Healthcare',
-    'Good News',
+    'Startups',
     'Technology',
-    'Sports',
-    'Entertainment',
-    'Science',
-    'Business',
-    'Travel',
-    'Lifestyle'
   ];
 
   @override
@@ -109,28 +101,15 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
 
     try {
       final data = await _newsService.fetchLiveNews(
-        category: category.toLowerCase(),
+        category: category,
         limit: 15,
         before: loadMore ? _categoryCursors[category] : null,
       );
 
-      final articles = (data['articles'] as List).map((json) {
-        // Live news returns RSS entries, adapt them
-        return Article(
-          externalId: (json['id'] ?? json['link'])?.toString(),
-          category: category,
-          headline: json['title']?.toString() ?? '',
-          summary: json['summary']?.toString() ?? '',
-          summarizedContent: json['summary']?.toString() ?? '',
-          source: json['descriptor_source']?.toString() ??
-              (json['source'] is Map ? json['source']['title'] : json['source'])
-                  ?.toString() ??
-              '',
-          imageUrl: _extractImageUrl(json),
-          url: json['link']?.toString() ?? '',
-          highlights: _extractHighlights(json['summary']?.toString() ?? ''),
-        );
-      }).where((article) {
+      final articles = (data['articles'] as List? ?? const [])
+          .whereType<Map>()
+          .map((json) => Article.fromJson(Map<String, dynamic>.from(json)))
+          .where((article) {
         final id = article.id ?? article.externalId ?? article.url;
         if (id == null || id.isEmpty) {
           return true; // Include articles without ID (safer fallback)
@@ -167,77 +146,6 @@ class _NewsViewScreenState extends ConsumerState<NewsViewScreen> {
     } catch (e) {
       setState(() => _categoryLoading[category] = false);
     }
-  }
-
-  String _extractImageUrl(dynamic json) {
-    if (json is! Map) return '';
-
-    // 1. Try media_content (List or Single)
-    final mediaContent = json['media_content'];
-    if (mediaContent is List && mediaContent.isNotEmpty) {
-      final media = mediaContent[0];
-      if (media is Map && media['url'] != null) return media['url'].toString();
-    } else if (mediaContent is Map) {
-      final url = mediaContent['url']?.toString();
-      if (url != null) return url;
-    }
-
-    // 2. Try media_thumbnail (List or Single)
-    final mediaThumb = json['media_thumbnail'];
-    if (mediaThumb is List && mediaThumb.isNotEmpty) {
-      final thumb = mediaThumb[0];
-      if (thumb is Map && thumb['url'] != null) return thumb['url'].toString();
-    } else if (mediaThumb is Map) {
-      final url = mediaThumb['url']?.toString();
-      if (url != null) return url;
-    }
-
-    // 3. Try standard links / enclosures
-    final links = json['links'];
-    if (links is List) {
-      for (final link in links) {
-        if (link is Map) {
-          final type = link['type']?.toString().toLowerCase() ?? '';
-          final rel = link['rel']?.toString().toLowerCase() ?? '';
-          if (type.startsWith('image/') ||
-              rel == 'enclosure' ||
-              rel == 'image') {
-            final href = (link['href'] ?? link['url'])?.toString();
-            if (href != null && href.isNotEmpty) return href;
-          }
-        }
-      }
-    }
-
-    // 4. Try image object (common in some RSS versions)
-    final imageObj = json['image'];
-    if (imageObj is Map && imageObj['url'] != null) {
-      return imageObj['url'].toString();
-    }
-
-    // 5. Last resort: Parse summary/content for <img> tags
-    final summary = json['summary']?.toString() ?? '';
-    final content = json['content']?.toString() ?? '';
-    final html = summary + content;
-    if (html.contains('<img')) {
-      final match = RegExp(r'<img[^>]+src="([^">]+)"').firstMatch(html);
-      if (match != null && match.groupCount >= 1) {
-        final src = match.group(1);
-        if (src != null && src.isNotEmpty) return src;
-      }
-    }
-
-    return '';
-  }
-
-  List<String> _extractHighlights(String summary) {
-    if (summary.isEmpty) return [];
-    return summary
-        .split(RegExp(r'[.\n]'))
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty && s.length > 10)
-        .take(4)
-        .toList();
   }
 
   @override
